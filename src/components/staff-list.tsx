@@ -63,14 +63,14 @@ export default function StaffList() {
     console.log(`Deleting employee ${employeeId}`);
   };
 
-  const handleSave = (employeeData: Employee) => {
-    if (selectedEmployee) {
+  const handleSave = (employeeData: Employee, isNew: boolean) => {
+    if (isNew) {
+      // Add new employee
+      const newEmployee = { ...employeeData }; // ID is now set in the dialog
+      setEmployees([newEmployee, ...employees]);
+    } else {
       // Edit existing employee
       setEmployees(employees.map(emp => emp.id === employeeData.id ? employeeData : emp));
-    } else {
-      // Add new employee
-      const newEmployee = { ...employeeData, id: `E-${Date.now()}`};
-      setEmployees([newEmployee, ...employees]);
     }
   };
 

@@ -21,7 +21,7 @@ interface StaffEditDialogProps {
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
   employee: Employee | null;
-  onSave: (employee: Employee) => void;
+  onSave: (employee: Employee, isNew: boolean) => void;
 }
 
 export function StaffEditDialog({
@@ -64,14 +64,22 @@ export function StaffEditDialog({
       });
       return;
     }
+    if (!employee && !id) {
+        toast({
+          variant: "destructive",
+          title: "Validation Error",
+          description: "Employee number cannot be empty.",
+        });
+        return;
+      }
 
     const employeeData: Employee = {
-      id: employee?.id || '',
+      id: id,
       name: name,
       avatarUrl: employee?.avatarUrl || `https://picsum.photos/seed/${id || name}/100/100`, // Use existing or generate new
     };
 
-    onSave(employeeData);
+    onSave(employeeData, !employee);
     setIsOpen(false);
     toast({
       title: "Success",
@@ -101,12 +109,10 @@ export function StaffEditDialog({
               placeholder="e.g. John Doe"
             />
           </div>
-          {employee && (
-            <div className="space-y-2">
-              <Label htmlFor="id">Employee ID</Label>
-              <Input id="id" value={id} disabled />
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="id">Employee Number</Label>
+            <Input id="id" value={id} onChange={(e) => setId(e.target.value)} disabled={!!employee} placeholder="e.g. E-011" />
+          </div>
           <div className="space-y-2">
             <Label>Biometrics</Label>
             <div className="flex items-center gap-4">
