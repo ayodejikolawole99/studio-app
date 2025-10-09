@@ -6,7 +6,6 @@ import MealTicket from '@/components/meal-ticket';
 import { Button } from '@/components/ui/button';
 import type { TicketData } from '@/lib/types';
 import { Home } from 'lucide-react';
-import BackgroundSlideshow from '@/components/background-slideshow';
 
 function TicketPageContent() {
   const searchParams = useSearchParams();
@@ -24,9 +23,11 @@ function TicketPageContent() {
 
   return (
     <>
-      <BackgroundSlideshow />
       <div 
-        className="fixed inset-0 -z-10 bg-contain bg-no-repeat bg-center opacity-10"
+        className="fixed inset-0 -z-10 bg-background/50"
+      ></div>
+      <div 
+        className="fixed inset-0 -z-20 bg-contain bg-no-repeat bg-center opacity-10"
         style={{backgroundImage: "url('https://upload.wikimedia.org/wikipedia/commons/3/3d/Graphic_Packaging_International_Logo.jpg')"}}
       ></div>
       <main 

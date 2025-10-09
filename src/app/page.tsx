@@ -6,7 +6,6 @@ import type { Employee } from '@/lib/types';
 import { employees } from '@/lib/data';
 import BiometricScanner from '@/components/biometric-scanner';
 import { useToast } from "@/hooks/use-toast"
-import BackgroundSlideshow from '@/components/background-slideshow';
 
 export default function AuthenticationPage() {
   const [isScanning, setIsScanning] = useState(false);
@@ -61,9 +60,11 @@ export default function AuthenticationPage() {
 
   return (
     <>
-      <BackgroundSlideshow />
       <div 
-        className="fixed inset-0 -z-10 bg-contain bg-no-repeat bg-center opacity-10"
+        className="fixed inset-0 -z-10 bg-background/50"
+      ></div>
+       <div 
+        className="fixed inset-0 -z-20 bg-contain bg-no-repeat bg-center opacity-10"
         style={{backgroundImage: "url('https://upload.wikimedia.org/wikipedia/commons/3/3d/Graphic_Packaging_International_Logo.jpg')"}}
       ></div>
       <main 
