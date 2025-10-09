@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react';
 import type { Employee, FeedingRecord, TicketData, AnalysisData } from '@/lib/types';
-import { employees, foodItems } from '@/lib/data';
+import { employees } from '@/lib/data';
 import BiometricScanner from '@/components/biometric-scanner';
 import FeedingHistory from '@/components/feeding-history';
 import MealTicket from '@/components/meal-ticket';
@@ -40,7 +40,6 @@ export default function CanteenTrackerDashboard() {
         employeeId: employee.id,
         employeeName: employee.name,
         timestamp: new Date(),
-        foodItem: foodItems[Math.floor(Math.random() * foodItems.length)],
       };
 
       const newTicket: TicketData = {
@@ -76,7 +75,7 @@ export default function CanteenTrackerDashboard() {
           feedingData: JSON.stringify(feedingRecords.map(r => ({
             employeeId: r.employeeId,
             timestamp: r.timestamp.toISOString(),
-            foodItem: r.foodItem,
+            foodItem: 'N/A',
           }))),
         });
         setAnalysis(result);

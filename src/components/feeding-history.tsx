@@ -26,7 +26,6 @@ export default function FeedingHistory({ records }: FeedingHistoryProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Employee</TableHead>
-                  <TableHead>Food Item</TableHead>
                   <TableHead className="text-right">Time</TableHead>
                 </TableRow>
               </TableHeader>
@@ -34,7 +33,6 @@ export default function FeedingHistory({ records }: FeedingHistoryProps) {
                 {records.map((record) => (
                   <TableRow key={record.id}>
                     <TableCell className="font-medium">{record.employeeName}</TableCell>
-                    <TableCell>{record.foodItem}</TableCell>
                     <TableCell className="text-right text-muted-foreground">
                       {record.timestamp.toLocaleTimeString()}
                     </TableCell>

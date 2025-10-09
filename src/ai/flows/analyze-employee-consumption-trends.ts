@@ -12,7 +12,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const AnalyzeEmployeeConsumptionTrendsInputSchema = z.object({
-  feedingData: z.string().describe('JSON string containing the feeding data of employees, including timestamps, employee IDs, and food items consumed.'),
+  feedingData: z.string().describe('JSON string containing the feeding data of employees, including timestamps and employee IDs.'),
 });
 export type AnalyzeEmployeeConsumptionTrendsInput = z.infer<typeof AnalyzeEmployeeConsumptionTrendsInputSchema>;
 
@@ -42,8 +42,9 @@ const prompt = ai.definePrompt({
   Based on this data, identify:
   - Key trends in employee feeding habits.
   - Peak hours for canteen usage.
-  - The most popular food items among employees.
   - An overall analysis of consumption patterns, including actionable suggestions for optimizing canteen resources and minimizing waste.
+  
+  Since there are no food items, the "popular food items" should state that this is not tracked.
 
   Ensure the output is clear, concise, and actionable for canteen management.
 

@@ -9,7 +9,6 @@ export type FeedingRecord = {
   employeeId: string;
   employeeName: string;
   timestamp: Date;
-  foodItem: string;
 };
 
 export type TicketData = {

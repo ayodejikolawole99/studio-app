@@ -13,16 +13,3 @@ export const employees: Employee[] = [
   { id: 'E-009', name: 'Ian Martinez', avatarUrl: PlaceHolderImages.find(p => p.id === 'emp9')?.imageUrl ?? '' },
   { id: 'E-010', name: 'Jane Wilson', avatarUrl: PlaceHolderImages.find(p => p.id === 'emp10')?.imageUrl ?? '' },
 ];
-
-export const foodItems: string[] = [
-  'Vegetable Curry',
-  'Grilled Chicken Salad',
-  'Spaghetti Bolognese',
-  'Lentil Soup',
-  'Fish and Chips',
-  'Beef Tacos',
-  'Mushroom Risotto',
-  'Pork Dumplings',
-  'Margherita Pizza',
-  'Chicken Alfredo',
-];
