@@ -19,13 +19,17 @@ export default function AuthenticationPage() {
     setIsAuthenticated(false);
     setAuthenticatedEmployee(null);
 
+    // TODO: Integrate with SecuGen Hamster Plus SDK/WebAPI here.
+    // The logic below is for demonstration and should be replaced with
+    // actual biometric scanning and user identification from your database.
+
     // Simulate biometric scan and user identification
     setTimeout(() => {
       // In a real scenario, the biometric scanner would return the identified user.
       // Here, we'll just pick a random employee to simulate a successful scan.
       const employee = employees[Math.floor(Math.random() * employees.length)];
       
-      // On successful scan
+      // On successful scan from the SecuGen device:
       setIsScanning(false);
       setIsAuthenticated(true);
       setAuthenticatedEmployee(employee);
@@ -49,6 +53,11 @@ export default function AuthenticationPage() {
         });
         router.push(`/ticket?${params.toString()}`);
       }, 1500);
+
+      // On a failed scan, you would handle the error state:
+      // setIsScanning(false);
+      // setScanError(true);
+      // toast({ variant: "destructive", title: "Authentication Failed" });
 
     }, 1500);
   };
