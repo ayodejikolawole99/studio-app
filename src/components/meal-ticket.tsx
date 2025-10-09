@@ -1,14 +1,24 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import type { TicketData } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Ticket } from 'lucide-react';
+import { Skeleton } from './ui/skeleton';
 
 interface MealTicketProps {
   ticket: TicketData | null;
 }
 
 export default function MealTicket({ ticket }: MealTicketProps) {
+  const [formattedTimestamp, setFormattedTimestamp] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (ticket?.timestamp) {
+      setFormattedTimestamp(ticket.timestamp.toLocaleString());
+    }
+  }, [ticket]);
+
   if (!ticket) {
     return (
       <Card className="flex h-[300px] items-center justify-center border-dashed print:hidden">
@@ -52,7 +62,11 @@ export default function MealTicket({ ticket }: MealTicketProps) {
             </div>
             <div className="text-right">
                 <p className="text-muted-foreground">Date & Time</p>
-                <p className="font-medium">{ticket.timestamp.toLocaleString()}</p>
+                {formattedTimestamp ? (
+                  <p className="font-medium">{formattedTimestamp}</p>
+                ) : (
+                  <Skeleton className="h-5 w-[150px] ml-auto" />
+                )}
             </div>
         </div>
       </div>
