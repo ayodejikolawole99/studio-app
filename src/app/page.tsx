@@ -61,7 +61,7 @@ export default function AuthenticationPage() {
   return (
     <main 
       className="min-h-screen flex items-center justify-center bg-background p-4 bg-contain bg-no-repeat bg-center"
-      style={{backgroundImage: "url('/background.png')"}}
+      style={{backgroundImage: "url('https://upload.wikimedia.org/wikipedia/commons/3/3d/Graphic_Packaging_International_Logo.jpg')", backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}
     >
         <div className="w-full max-w-md">
             <header className="mb-8 text-center bg-background/80 backdrop-blur-sm p-4 rounded-xl">
