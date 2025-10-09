@@ -17,6 +17,8 @@ import { useEffect, useState } from 'react';
 import type { Employee } from '@/lib/types';
 import { Fingerprint } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { departments } from '@/lib/data';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface StaffEditDialogProps {
   isOpen: boolean;
@@ -132,7 +134,18 @@ export function StaffEditDialog({
            <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="department">Department</Label>
-              <Input id="department" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="e.g. Production"/>
+              <Select value={department} onValueChange={setDepartment}>
+                <SelectTrigger id="department">
+                  <SelectValue placeholder="Select a department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((dep) => (
+                    <SelectItem key={dep} value={dep}>
+                      {dep}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="ticketBalance">Ticket Balance</Label>
