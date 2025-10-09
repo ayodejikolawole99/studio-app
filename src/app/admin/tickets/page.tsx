@@ -2,13 +2,14 @@
 'use client';
 
 import { useState } from 'react';
-import { employees as initialEmployees } from '@/lib/data';
+import { employees as initialEmployees, departments as initialDepartments } from '@/lib/data';
 import type { Employee } from '@/lib/types';
 import IndividualTicketControl from '@/components/individual-ticket-control';
 import BulkTicketControl from '@/components/bulk-ticket-control';
 
 export default function TicketsPage() {
   const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
+  const [departments] = useState<string[]>(initialDepartments);
 
   const handleIndividualUpdate = (employeeId: string, amount: number) => {
     setEmployees(prev => 
@@ -20,10 +21,12 @@ export default function TicketsPage() {
     );
   };
   
-  const handleBulkUpdate = (amount: number) => {
+  const handleBulkUpdate = (department: string, amount: number) => {
     setEmployees(prev => 
       prev.map(emp => 
-        ({ ...emp, ticketBalance: Math.max(0, emp.ticketBalance + amount) })
+        (department === 'all' || emp.department === department)
+        ? { ...emp, ticketBalance: Math.max(0, emp.ticketBalance + amount) }
+        : emp
       )
     );
   };
@@ -43,7 +46,10 @@ export default function TicketsPage() {
           employees={employees} 
           onUpdate={handleIndividualUpdate}
         />
-        <BulkTicketControl onUpdate={handleBulkUpdate} />
+        <BulkTicketControl 
+          departments={departments}
+          onUpdate={handleBulkUpdate} 
+        />
       </div>
     </>
   )

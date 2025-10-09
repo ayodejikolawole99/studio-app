@@ -43,7 +43,8 @@ export default function StaffList() {
 
   const filteredEmployees = employees.filter((employee) =>
     employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    employee.id.toLowerCase().includes(searchTerm.toLowerCase())
+    employee.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    employee.department.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleAdd = () => {
@@ -88,7 +89,7 @@ export default function StaffList() {
           <div className="relative mt-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name or ID..."
+              placeholder="Search by name, ID, or department..."
               className="pl-8"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -101,6 +102,7 @@ export default function StaffList() {
               <TableRow>
                 <TableHead>Employee Name</TableHead>
                 <TableHead>ID</TableHead>
+                <TableHead>Department</TableHead>
                 <TableHead>Ticket Balance</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -112,6 +114,7 @@ export default function StaffList() {
                     <span className="font-medium">{employee.name}</span>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{employee.id}</TableCell>
+                  <TableCell>{employee.department}</TableCell>
                   <TableCell className="font-medium">{employee.ticketBalance}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>

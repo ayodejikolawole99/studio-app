@@ -33,6 +33,7 @@ export function StaffEditDialog({
 }: StaffEditDialogProps) {
   const [name, setName] = useState('');
   const [id, setId] = useState('');
+  const [department, setDepartment] = useState('');
   const [ticketBalance, setTicketBalance] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
   const { toast } = useToast();
@@ -41,6 +42,7 @@ export function StaffEditDialog({
     if (isOpen) {
       setName(employee?.name || '');
       setId(employee?.id || '');
+      setDepartment(employee?.department || '');
       setTicketBalance(employee?.ticketBalance || 0);
     }
   }, [isOpen, employee]);
@@ -75,10 +77,19 @@ export function StaffEditDialog({
         });
         return;
       }
+    if (!department) {
+        toast({
+            variant: "destructive",
+            title: "Validation Error",
+            description: "Department cannot be empty.",
+        });
+        return;
+    }
 
     const employeeData: Employee = {
       id: id,
       name: name,
+      department: department,
       ticketBalance: ticketBalance
     };
 
@@ -103,19 +114,25 @@ export function StaffEditDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Employee Name</Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. John Doe"
-            />
-          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="id">Employee Number</Label>
-              <Input id="id" value={id} onChange={(e) => setId(e.target.value)} disabled={!!employee} placeholder="e.g. E-011" />
+                <Label htmlFor="name">Employee Name</Label>
+                <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. John Doe"
+                />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="id">Employee Number</Label>
+                <Input id="id" value={id} onChange={(e) => setId(e.target.value)} disabled={!!employee} placeholder="e.g. E-011" />
+            </div>
+          </div>
+           <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="department">Department</Label>
+              <Input id="department" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="e.g. Production"/>
             </div>
             <div className="space-y-2">
               <Label htmlFor="ticketBalance">Ticket Balance</Label>
