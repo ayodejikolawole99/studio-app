@@ -4,27 +4,22 @@ import type { Employee } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Fingerprint, Loader2, CheckCircle2, XCircle, User } from 'lucide-react';
 
 interface BiometricScannerProps {
-  employees: Employee[];
-  selectedEmployee: Employee | undefined;
-  onSelectEmployee: (id: string) => void;
   onScan: () => void;
   isScanning: boolean;
   isAuthenticated: boolean;
   scanError?: boolean;
+  authenticatedEmployee: Employee | null;
 }
 
 export default function BiometricScanner({
-  employees,
-  selectedEmployee,
-  onSelectEmployee,
   onScan,
   isScanning,
   isAuthenticated,
   scanError,
+  authenticatedEmployee
 }: BiometricScannerProps) {
   
   const getScanStateIcon = () => {
@@ -50,44 +45,28 @@ export default function BiometricScanner({
         <CardTitle className="font-headline flex items-center gap-2">
           <Fingerprint /> Biometric Authentication
         </CardTitle>
-        <CardDescription>Select your name and scan your fingerprint to proceed.</CardDescription>
+        <CardDescription>Place your finger on the scanner to proceed.</CardDescription>
       </CardHeader>
       <CardContent className="flex-grow flex flex-col items-center justify-center gap-6">
-        <div className="w-full max-w-xs">
-          <Select value={selectedEmployee?.id} onValueChange={onSelectEmployee}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select an employee..." />
-            </SelectTrigger>
-            <SelectContent>
-              {employees.map((employee) => (
-                <SelectItem key={employee.id} value={employee.id}>
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-6 w-6">
-                      <AvatarImage src={employee.avatarUrl} alt={employee.name} data-ai-hint="person portrait" />
-                      <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
-                    </Avatar>
-                    <span>{employee.name}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
+        
         <div className="relative flex h-40 w-40 items-center justify-center rounded-full bg-muted/50">
           {getScanStateIcon()}
         </div>
         
-        {selectedEmployee && !isAuthenticated && !scanError && (
-            <div className="text-center">
-                <p className="font-medium text-lg">{selectedEmployee.name}</p>
-                <p className="text-sm text-muted-foreground">{selectedEmployee.id}</p>
+        {authenticatedEmployee && isAuthenticated && (
+            <div className="text-center animate-in fade-in-50">
+                <Avatar className="h-20 w-20 mx-auto mb-4 border-2 border-primary">
+                  <AvatarImage src={authenticatedEmployee.avatarUrl} alt={authenticatedEmployee.name} data-ai-hint="person portrait" />
+                  <AvatarFallback><User className="h-10 w-10" /></AvatarFallback>
+                </Avatar>
+                <p className="font-medium text-lg">{authenticatedEmployee.name}</p>
+                <p className="text-sm text-muted-foreground">{authenticatedEmployee.id}</p>
             </div>
         )}
 
       </CardContent>
       <CardFooter>
-        <Button onClick={onScan} disabled={isScanning || !selectedEmployee || isAuthenticated} className="w-full">
+        <Button onClick={onScan} disabled={isScanning || isAuthenticated} className="w-full">
           {isScanning ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
