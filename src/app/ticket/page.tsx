@@ -35,9 +35,9 @@ function TicketPageContent() {
         style={{backgroundImage: "url('https://upload.wikimedia.org/wikipedia/commons/3/3d/Graphic_Packaging_International_Logo.jpg')"}}
       ></div>
       <main 
-        className="min-h-screen flex items-center justify-center bg-transparent p-4 print:bg-white print:min-h-0 print:p-0"
+        className="min-h-screen flex items-center justify-center bg-transparent p-4 print:bg-white print:min-h-0 print:p-0 print-container"
       >
-        <div className="w-full max-w-md space-y-6 print:space-y-0 print:max-w-none">
+        <div className="w-full max-w-md space-y-6 print:space-y-0 print:max-w-none print-content">
           <header className="text-center bg-background/80 backdrop-blur-sm p-4 rounded-xl print:hidden">
               <h1 className="font-headline text-3xl font-bold tracking-tight text-foreground">
                 Your Meal Ticket
