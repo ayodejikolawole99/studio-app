@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import StaffList from '@/components/staff-list';
 
 export default function StaffPage() {
   return (
@@ -11,15 +11,7 @@ export default function StaffPage() {
           Add, edit, and manage employee information.
         </p>
       </header>
-      <Card>
-        <CardHeader>
-          <CardTitle>Staff Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p>Staff management UI will go here.</p>
-          {/* TODO: Add components for adding, editing, and deleting staff */}
-        </CardContent>
-      </Card>
+      <StaffList />
     </>
   )
 }
