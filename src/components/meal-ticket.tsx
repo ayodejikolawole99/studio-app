@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import type { TicketData } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Ticket } from 'lucide-react';
+import { Ticket, Utensils } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 
 interface MealTicketProps {
@@ -11,17 +11,19 @@ interface MealTicketProps {
 }
 
 export default function MealTicket({ ticket }: MealTicketProps) {
-  const [formattedTimestamp, setFormattedTimestamp] = useState<string | null>(null);
+  const [formattedDate, setFormattedDate] = useState<string | null>(null);
+  const [formattedTime, setFormattedTime] = useState<string | null>(null);
 
   useEffect(() => {
     if (ticket?.timestamp) {
-      setFormattedTimestamp(ticket.timestamp.toLocaleString());
+      setFormattedDate(ticket.timestamp.toLocaleDateString());
+      setFormattedTime(ticket.timestamp.toLocaleTimeString());
     }
   }, [ticket]);
 
   if (!ticket) {
     return (
-      <Card className="flex h-[300px] items-center justify-center border-dashed print:hidden">
+      <Card className="flex h-[300px] items-center justify-center border-dashed no-print">
         <div className="text-center text-muted-foreground">
           <Ticket className="mx-auto h-12 w-12" />
           <p className="mt-4">Authenticate an employee to generate a ticket.</p>
@@ -31,45 +33,46 @@ export default function MealTicket({ ticket }: MealTicketProps) {
   }
 
   return (
-    <Card className="relative overflow-hidden shadow-lg animate-in fade-in zoom-in-95 print:shadow-none print:border print:rounded-lg">
-      <div className="absolute -top-4 -left-4 h-8 w-8 rounded-full bg-background print:hidden"></div>
-      <div className="absolute -top-4 -right-4 h-8 w-8 rounded-full bg-background print:hidden"></div>
-      <div className="absolute -bottom-4 -left-4 h-8 w-8 rounded-full bg-background print:hidden"></div>
-      <div className="absolute -bottom-4 -right-4 h-8 w-8 rounded-full bg-background print:hidden"></div>
-
-      <div className="p-6">
-        <div className="flex justify-between items-start">
-            <div>
-                <h2 className="font-headline text-2xl font-bold text-primary">Meal Ticket</h2>
-                <p className="text-sm text-muted-foreground">Valid for one meal</p>
-            </div>
-            <Ticket className="h-10 w-10 text-primary/70" />
+    <div className="bg-white text-black font-mono w-full print:w-[70mm] p-2 print:p-0 mx-auto">
+        <div className="text-center space-y-2">
+            <Utensils className="h-8 w-8 mx-auto" />
+            <h2 className="font-bold text-lg">Meal Ticket</h2>
+            <p className="text-xs">Graphic Packaging International</p>
         </div>
 
-        <div className="my-6 border-t-2 border-dashed border-border"></div>
+        <div className="my-3 border-t-2 border-dashed border-black"></div>
 
-        <div>
-            <p className="text-sm text-muted-foreground">Employee</p>
-            <p className="text-xl font-semibold">{ticket.employeeName}</p>
+        <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+                <span className="font-bold">Employee:</span>
+                <span>{ticket.employeeName}</span>
+            </div>
+            <div className="flex justify-between">
+                <span className="font-bold">Ticket ID:</span>
+                <span>{ticket.ticketId}</span>
+            </div>
+             {formattedDate ? (
+                <>
+                    <div className="flex justify-between">
+                        <span className="font-bold">Date:</span>
+                        <span>{formattedDate}</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="font-bold">Time:</span>
+                        <span>{formattedTime}</span>
+                    </div>
+                </>
+             ) : (
+                <div className="space-y-1">
+                    <Skeleton className="h-4 w-full bg-gray-300" />
+                    <Skeleton className="h-4 w-full bg-gray-300" />
+                </div>
+             )}
         </div>
 
-        <div className="my-6 border-t-2 border-dashed border-border"></div>
+        <div className="my-3 border-t-2 border-dashed border-black"></div>
 
-        <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-                <p className="text-muted-foreground">Ticket ID</p>
-                <p className="font-mono font-medium">{ticket.ticketId}</p>
-            </div>
-            <div className="text-right">
-                <p className="text-muted-foreground">Date & Time</p>
-                {formattedTimestamp ? (
-                  <p className="font-medium">{formattedTimestamp}</p>
-                ) : (
-                  <Skeleton className="h-5 w-[150px] ml-auto" />
-                )}
-            </div>
-        </div>
-      </div>
-    </Card>
+        <p className="text-center text-xs">Valid for one meal. Not transferable.</p>
+    </div>
   );
 }
