@@ -61,9 +61,12 @@ export default function AuthenticationPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-background p-4">
+    <main 
+      className="min-h-screen flex items-center justify-center bg-background p-4 bg-cover bg-center"
+      style={{backgroundImage: "url('/background.png')"}}
+    >
         <div className="w-full max-w-md">
-            <header className="mb-8 text-center">
+            <header className="mb-8 text-center bg-background/80 backdrop-blur-sm p-4 rounded-xl">
                 <h1 className="font-headline text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
                 Canteen Tracker
                 </h1>

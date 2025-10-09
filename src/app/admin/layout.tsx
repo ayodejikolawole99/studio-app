@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   SidebarProvider,
@@ -13,8 +14,8 @@ import {
   SidebarFooter,
   SidebarInset,
 } from '@/components/ui/sidebar';
-import { Home, Users, Ticket, BarChart3, Settings, LayoutDashboard } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Users, Ticket, BarChart3, Settings, LayoutDashboard } from 'lucide-react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -46,7 +47,7 @@ export default function AdminLayout({
                 <SidebarHeader>
                     <div className="flex items-center gap-2">
                         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                            <Ticket className="h-6 w-6"/>
+                            <Image src="/logo-icon.svg" width={24} height={24} alt="Logo"/>
                         </div>
                         <h2 className="text-xl font-bold tracking-tight">Canteen Admin</h2>
                     </div>
@@ -73,7 +74,6 @@ export default function AdminLayout({
                       <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="justify-start gap-2 p-2 h-auto w-full">
                                 <Avatar className="h-8 w-8">
-                                    <AvatarImage src="https://picsum.photos/seed/admin/100/100" />
                                     <AvatarFallback>AD</AvatarFallback>
                                 </Avatar>
                                 <div className="text-left group-data-[collapsible=icon]:hidden">
