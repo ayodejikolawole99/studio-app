@@ -22,9 +22,12 @@ function TicketPageContent() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-background p-4">
+    <main 
+      className="min-h-screen flex items-center justify-center bg-background p-4 bg-contain bg-no-repeat bg-center"
+      style={{backgroundImage: "url('/background.png')"}}
+    >
       <div className="w-full max-w-md space-y-6">
-        <header className="text-center">
+        <header className="text-center bg-background/80 backdrop-blur-sm p-4 rounded-xl">
             <h1 className="font-headline text-3xl font-bold tracking-tight text-foreground">
               Your Meal Ticket
             </h1>

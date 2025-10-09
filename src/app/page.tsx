@@ -24,45 +24,43 @@ export default function AuthenticationPage() {
     // actual biometric scanning and user identification from your database.
 
     // Simulate biometric scan and user identification
-    setTimeout(() => {
-      // In a real scenario, the biometric scanner would return the identified user.
-      // Here, we'll just pick a random employee to simulate a successful scan.
-      const employee = employees[Math.floor(Math.random() * employees.length)];
-      
-      // On successful scan from the SecuGen device:
-      setIsScanning(false);
-      setIsAuthenticated(true);
-      setAuthenticatedEmployee(employee);
-      
-      toast({
-        title: "Authentication Successful",
-        description: `Welcome, ${employee.name}. Generating your ticket...`,
-      });
+    // In a real scenario, the biometric scanner would return the identified user.
+    // Here, we'll just pick a random employee to simulate a successful scan.
+    const employee = employees[Math.floor(Math.random() * employees.length)];
+    
+    // On successful scan from the SecuGen device:
+    setIsScanning(false);
+    setIsAuthenticated(true);
+    setAuthenticatedEmployee(employee);
+    
+    toast({
+      title: "Authentication Successful",
+      description: `Welcome, ${employee.name}. Generating your ticket...`,
+    });
 
-      const ticketData = {
-        ticketId: `T-${Date.now()}`,
-        employeeName: employee.name,
-        timestamp: new Date().toISOString(),
-      };
+    const ticketData = {
+      ticketId: `T-${Date.now()}`,
+      employeeName: employee.name,
+      timestamp: new Date().toISOString(),
+    };
 
-      // Redirect to the ticket page with ticket data
-      const params = new URLSearchParams({
-          ticket: JSON.stringify(ticketData),
-      });
-      router.push(`/ticket?${params.toString()}`);
+    // Redirect to the ticket page with ticket data
+    const params = new URLSearchParams({
+        ticket: JSON.stringify(ticketData),
+    });
+    router.push(`/ticket?${params.toString()}`);
 
 
-      // On a failed scan, you would handle the error state:
-      // setIsScanning(false);
-      // setScanError(true);
-      // toast({ variant: "destructive", title: "Authentication Failed" });
+    // On a failed scan, you would handle the error state:
+    // setIsScanning(false);
+    // setScanError(true);
+    // toast({ variant: "destructive", title: "Authentication Failed" });
 
-    }, 1500);
   };
 
   return (
     <main 
-      className="min-h-screen flex items-center justify-center bg-background p-4 bg-cover bg-center"
+      className="min-h-screen flex items-center justify-center bg-background p-4 bg-contain bg-no-repeat bg-center"
       style={{backgroundImage: "url('/background.png')"}}
     >
         <div className="w-full max-w-md">
