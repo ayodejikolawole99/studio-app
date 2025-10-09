@@ -1,6 +1,8 @@
+
 export type Employee = {
   id: string;
   name: string;
+  ticketBalance: number;
 };
 
 export type FeedingRecord = {

@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -32,6 +33,7 @@ export function StaffEditDialog({
 }: StaffEditDialogProps) {
   const [name, setName] = useState('');
   const [id, setId] = useState('');
+  const [ticketBalance, setTicketBalance] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
   const { toast } = useToast();
 
@@ -39,6 +41,7 @@ export function StaffEditDialog({
     if (isOpen) {
       setName(employee?.name || '');
       setId(employee?.id || '');
+      setTicketBalance(employee?.ticketBalance || 0);
     }
   }, [isOpen, employee]);
 
@@ -76,6 +79,7 @@ export function StaffEditDialog({
     const employeeData: Employee = {
       id: id,
       name: name,
+      ticketBalance: ticketBalance
     };
 
     onSave(employeeData, !employee);
@@ -108,9 +112,15 @@ export function StaffEditDialog({
               placeholder="e.g. John Doe"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="id">Employee Number</Label>
-            <Input id="id" value={id} onChange={(e) => setId(e.target.value)} disabled={!!employee} placeholder="e.g. E-011" />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="id">Employee Number</Label>
+              <Input id="id" value={id} onChange={(e) => setId(e.target.value)} disabled={!!employee} placeholder="e.g. E-011" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ticketBalance">Ticket Balance</Label>
+              <Input id="ticketBalance" type="number" value={ticketBalance} onChange={(e) => setTicketBalance(Number(e.target.value))} />
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Biometrics</Label>

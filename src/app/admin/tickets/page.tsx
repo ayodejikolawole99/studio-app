@@ -1,6 +1,33 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+'use client';
+
+import { useState } from 'react';
+import { employees as initialEmployees } from '@/lib/data';
+import type { Employee } from '@/lib/types';
+import IndividualTicketControl from '@/components/individual-ticket-control';
+import BulkTicketControl from '@/components/bulk-ticket-control';
 
 export default function TicketsPage() {
+  const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
+
+  const handleIndividualUpdate = (employeeId: string, amount: number) => {
+    setEmployees(prev => 
+      prev.map(emp => 
+        emp.id === employeeId 
+        ? { ...emp, ticketBalance: Math.max(0, emp.ticketBalance + amount) } 
+        : emp
+      )
+    );
+  };
+  
+  const handleBulkUpdate = (amount: number) => {
+    setEmployees(prev => 
+      prev.map(emp => 
+        ({ ...emp, ticketBalance: Math.max(0, emp.ticketBalance + amount) })
+      )
+    );
+  };
+
   return (
     <>
       <header className="mb-8">
@@ -11,15 +38,13 @@ export default function TicketsPage() {
           Allocate individual and bulk tickets to employees.
         </p>
       </header>
-      <Card>
-        <CardHeader>
-          <CardTitle>Ticket Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p>Ticket management UI will go here.</p>
-          {/* TODO: Add components for adding single and bulk tickets */}
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <IndividualTicketControl 
+          employees={employees} 
+          onUpdate={handleIndividualUpdate}
+        />
+        <BulkTicketControl onUpdate={handleBulkUpdate} />
+      </div>
     </>
   )
 }
