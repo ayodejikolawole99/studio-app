@@ -46,10 +46,7 @@ export default function AdminLayout({
             <SidebarContent>
                 <SidebarHeader>
                     <div className="flex items-center gap-2">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                            <Image src="/logo-icon.svg" width={24} height={24} alt="Logo"/>
-                        </div>
-                        <h2 className="text-xl font-bold tracking-tight">Canteen Admin</h2>
+                        <Image src="https://upload.wikimedia.org/wikipedia/commons/3/3d/Graphic_Packaging_International_Logo.jpg" width={150} height={30} alt="Logo" className='m-4'/>
                     </div>
                 </SidebarHeader>
 

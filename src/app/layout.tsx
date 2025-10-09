@@ -3,7 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 
 export const metadata: Metadata = {
-  title: 'Canteen Tracker',
+  title: 'Canteen Biometric',
   description: 'A desktop app for canteen biometric capturing to track employee feeding and ticket creation.',
 };
 

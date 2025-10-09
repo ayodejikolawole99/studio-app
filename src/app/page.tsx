@@ -66,7 +66,7 @@ export default function AuthenticationPage() {
         <div className="w-full max-w-md">
             <header className="mb-8 text-center bg-background/80 backdrop-blur-sm p-4 rounded-xl">
                 <h1 className="font-headline text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-                Canteen Tracker
+                Canteen Biometric
                 </h1>
                 <p className="mt-2 text-lg text-muted-foreground">
                 Please scan your fingerprint to generate your meal ticket.
