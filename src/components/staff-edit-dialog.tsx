@@ -36,7 +36,6 @@ export function StaffEditDialog({
   const [name, setName] = useState('');
   const [id, setId] = useState('');
   const [department, setDepartment] = useState('');
-  const [ticketBalance, setTicketBalance] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
   const { toast } = useToast();
 
@@ -45,7 +44,6 @@ export function StaffEditDialog({
       setName(employee?.name || '');
       setId(employee?.id || '');
       setDepartment(employee?.department || '');
-      setTicketBalance(employee?.ticketBalance || 0);
     }
   }, [isOpen, employee]);
 
@@ -92,7 +90,7 @@ export function StaffEditDialog({
       id: id,
       name: name,
       department: department,
-      ticketBalance: ticketBalance
+      ticketBalance: employee?.ticketBalance || 0
     };
 
     onSave(employeeData, !employee);
@@ -131,7 +129,7 @@ export function StaffEditDialog({
                 <Input id="id" value={id} onChange={(e) => setId(e.target.value)} disabled={!!employee} placeholder="e.g. E-011" />
             </div>
           </div>
-           <div className="grid grid-cols-2 gap-4">
+           <div className="grid grid-cols-1 gap-4">
             <div className="space-y-2">
               <Label htmlFor="department">Department</Label>
               <Select value={department} onValueChange={setDepartment}>
@@ -146,10 +144,6 @@ export function StaffEditDialog({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ticketBalance">Ticket Balance</Label>
-              <Input id="ticketBalance" type="number" value={ticketBalance} onChange={(e) => setTicketBalance(Number(e.target.value))} />
             </div>
           </div>
           <div className="space-y-2">
