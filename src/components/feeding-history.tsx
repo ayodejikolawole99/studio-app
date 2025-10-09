@@ -4,7 +4,7 @@ import type { FeedingRecord } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Utensils } from 'lucide-react';
+import { History } from 'lucide-react';
 
 interface FeedingHistoryProps {
   records: FeedingRecord[];
@@ -15,9 +15,9 @@ export default function FeedingHistory({ records }: FeedingHistoryProps) {
     <Card className="h-full flex flex-col">
       <CardHeader>
         <CardTitle className="font-headline flex items-center gap-2">
-          <Utensils /> Feeding History
+          <History /> Recent Prints
         </CardTitle>
-        <CardDescription>A log of recent employee meal authentications.</CardDescription>
+        <CardDescription>A log of recently printed tickets.</CardDescription>
       </CardHeader>
       <CardContent className="p-0 flex-grow">
         <ScrollArea className="h-[360px]">
@@ -42,7 +42,7 @@ export default function FeedingHistory({ records }: FeedingHistoryProps) {
             </Table>
           ) : (
             <div className="flex h-full items-center justify-center p-6">
-              <p className="text-muted-foreground">No feeding records yet.</p>
+              <p className="text-muted-foreground">No recent prints.</p>
             </div>
           )}
         </ScrollArea>

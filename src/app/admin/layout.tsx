@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -14,7 +13,7 @@ import {
   SidebarFooter,
   SidebarInset,
 } from '@/components/ui/sidebar';
-import { Home, Users, Ticket, BarChart3, Settings } from 'lucide-react';
+import { Home, Users, Ticket, BarChart3, Settings, LayoutDashboard } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,7 +26,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const navItems = [
-    { href: '/admin', label: 'Dashboard', icon: Home },
+    { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/staff', label: 'Staff Management', icon: Users },
     { href: '/admin/tickets', label: 'Ticket Management', icon: Ticket },
     { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
