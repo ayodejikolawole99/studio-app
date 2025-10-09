@@ -76,7 +76,6 @@ export function StaffEditDialog({
     const employeeData: Employee = {
       id: id,
       name: name,
-      avatarUrl: employee?.avatarUrl || `https://picsum.photos/seed/${id || name}/100/100`, // Use existing or generate new
     };
 
     onSave(employeeData, !employee);

@@ -3,8 +3,7 @@
 import type { Employee } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Fingerprint, Loader2, CheckCircle2, XCircle, User } from 'lucide-react';
+import { Fingerprint, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 
 interface BiometricScannerProps {
   onScan: () => void;
@@ -55,10 +54,6 @@ export default function BiometricScanner({
         
         {authenticatedEmployee && isAuthenticated && (
             <div className="text-center animate-in fade-in-50">
-                <Avatar className="h-20 w-20 mx-auto mb-4 border-2 border-primary">
-                  <AvatarImage src={authenticatedEmployee.avatarUrl} alt={authenticatedEmployee.name} data-ai-hint="person portrait" />
-                  <AvatarFallback><User className="h-10 w-10" /></AvatarFallback>
-                </Avatar>
                 <p className="font-medium text-lg">{authenticatedEmployee.name}</p>
                 <p className="text-sm text-muted-foreground">{authenticatedEmployee.id}</p>
             </div>

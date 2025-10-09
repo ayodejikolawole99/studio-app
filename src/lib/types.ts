@@ -1,7 +1,6 @@
 export type Employee = {
   id: string;
   name: string;
-  avatarUrl: string;
 };
 
 export type FeedingRecord = {
@@ -14,7 +13,6 @@ export type FeedingRecord = {
 export type TicketData = {
   ticketId: string;
   employeeName: string;
-  employeeAvatarUrl: string;
   timestamp: Date;
 };
 

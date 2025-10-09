@@ -42,7 +42,6 @@ export default function AuthenticationPage() {
       const ticketData = {
         ticketId: `T-${Date.now()}`,
         employeeName: employee.name,
-        employeeAvatarUrl: employee.avatarUrl,
         timestamp: new Date().toISOString(),
       };
 

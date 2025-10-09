@@ -1,9 +1,8 @@
 'use client';
 
 import type { TicketData } from '@/lib/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Clock, Ticket, User } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Ticket } from 'lucide-react';
 
 interface MealTicketProps {
   ticket: TicketData | null;
@@ -39,15 +38,9 @@ export default function MealTicket({ ticket }: MealTicketProps) {
 
         <div className="my-6 border-t-2 border-dashed border-border"></div>
 
-        <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16 border-2 border-primary/50">
-                <AvatarImage src={ticket.employeeAvatarUrl} alt={ticket.employeeName} />
-                <AvatarFallback><User className="h-8 w-8" /></AvatarFallback>
-            </Avatar>
-            <div>
-                <p className="text-sm text-muted-foreground">Employee</p>
-                <p className="text-xl font-semibold">{ticket.employeeName}</p>
-            </div>
+        <div>
+            <p className="text-sm text-muted-foreground">Employee</p>
+            <p className="text-xl font-semibold">{ticket.employeeName}</p>
         </div>
 
         <div className="my-6 border-t-2 border-dashed border-border"></div>

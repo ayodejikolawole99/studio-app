@@ -21,8 +21,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { employees as initialEmployees } from '@/lib/data';
 import type { Employee } from '@/lib/types';
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { User } from 'lucide-react';
 import { StaffEditDialog } from './staff-edit-dialog';
 import {
   AlertDialog,
@@ -99,7 +97,7 @@ export default function StaffList() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Employee</TableHead>
+                <TableHead>Employee Name</TableHead>
                 <TableHead>ID</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -108,13 +106,7 @@ export default function StaffList() {
               {filteredEmployees.map((employee) => (
                 <TableRow key={employee.id}>
                   <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarImage src={employee.avatarUrl} alt={employee.name} />
-                        <AvatarFallback><User /></AvatarFallback>
-                      </Avatar>
-                      <span className="font-medium">{employee.name}</span>
-                    </div>
+                    <span className="font-medium">{employee.name}</span>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{employee.id}</TableCell>
                   <TableCell className="text-right">
