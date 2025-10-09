@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import MealTicket from '@/components/meal-ticket';
 import { Button } from '@/components/ui/button';
 import type { TicketData } from '@/lib/types';
-import { Home } from 'lucide-react';
+import { Home, Printer } from 'lucide-react';
 
 function TicketPageContent() {
   const searchParams = useSearchParams();
@@ -21,20 +21,24 @@ function TicketPageContent() {
     };
   }
 
+  const handlePrint = () => {
+    window.print();
+  }
+
   return (
     <>
       <div 
-        className="fixed inset-0 -z-10 bg-background/50"
+        className="fixed inset-0 -z-10 bg-background/50 print:hidden"
       ></div>
       <div 
-        className="fixed inset-0 -z-20 bg-contain bg-no-repeat bg-center opacity-10"
+        className="fixed inset-0 -z-20 bg-contain bg-no-repeat bg-center opacity-10 print:hidden"
         style={{backgroundImage: "url('https://upload.wikimedia.org/wikipedia/commons/3/3d/Graphic_Packaging_International_Logo.jpg')"}}
       ></div>
       <main 
-        className="min-h-screen flex items-center justify-center bg-transparent p-4"
+        className="min-h-screen flex items-center justify-center bg-transparent p-4 print:bg-white print:min-h-0 print:p-0"
       >
-        <div className="w-full max-w-md space-y-6">
-          <header className="text-center bg-background/80 backdrop-blur-sm p-4 rounded-xl">
+        <div className="w-full max-w-md space-y-6 print:space-y-0 print:max-w-none">
+          <header className="text-center bg-background/80 backdrop-blur-sm p-4 rounded-xl print:hidden">
               <h1 className="font-headline text-3xl font-bold tracking-tight text-foreground">
                 Your Meal Ticket
               </h1>
@@ -42,11 +46,19 @@ function TicketPageContent() {
                 Present this ticket at the canteen.
               </p>
           </header>
-          <MealTicket ticket={ticket} />
-          <Button onClick={() => router.push('/')} variant="outline" className="w-full">
-            <Home className="mr-2"/>
-            Back to Authentication
-          </Button>
+          <div className="print:p-4">
+            <MealTicket ticket={ticket} />
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 print:hidden">
+            <Button onClick={() => router.push('/')} variant="outline" className="w-full">
+              <Home className="mr-2"/>
+              Back to Authentication
+            </Button>
+            <Button onClick={handlePrint} className="w-full">
+              <Printer className="mr-2"/>
+              Print Ticket
+            </Button>
+          </div>
         </div>
       </main>
     </>

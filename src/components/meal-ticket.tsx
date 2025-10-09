@@ -11,7 +11,7 @@ interface MealTicketProps {
 export default function MealTicket({ ticket }: MealTicketProps) {
   if (!ticket) {
     return (
-      <Card className="flex h-[300px] items-center justify-center border-dashed">
+      <Card className="flex h-[300px] items-center justify-center border-dashed print:hidden">
         <div className="text-center text-muted-foreground">
           <Ticket className="mx-auto h-12 w-12" />
           <p className="mt-4">Authenticate an employee to generate a ticket.</p>
@@ -21,11 +21,11 @@ export default function MealTicket({ ticket }: MealTicketProps) {
   }
 
   return (
-    <Card className="relative overflow-hidden shadow-lg animate-in fade-in zoom-in-95">
-      <div className="absolute -top-4 -left-4 h-8 w-8 rounded-full bg-background"></div>
-      <div className="absolute -top-4 -right-4 h-8 w-8 rounded-full bg-background"></div>
-      <div className="absolute -bottom-4 -left-4 h-8 w-8 rounded-full bg-background"></div>
-      <div className="absolute -bottom-4 -right-4 h-8 w-8 rounded-full bg-background"></div>
+    <Card className="relative overflow-hidden shadow-lg animate-in fade-in zoom-in-95 print:shadow-none print:border print:rounded-lg">
+      <div className="absolute -top-4 -left-4 h-8 w-8 rounded-full bg-background print:hidden"></div>
+      <div className="absolute -top-4 -right-4 h-8 w-8 rounded-full bg-background print:hidden"></div>
+      <div className="absolute -bottom-4 -left-4 h-8 w-8 rounded-full bg-background print:hidden"></div>
+      <div className="absolute -bottom-4 -right-4 h-8 w-8 rounded-full bg-background print:hidden"></div>
 
       <div className="p-6">
         <div className="flex justify-between items-start">
