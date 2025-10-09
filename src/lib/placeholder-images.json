@@ -1,3 +1,64 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "emp1",
+      "description": "Avatar for Alice Johnson",
+      "imageUrl": "https://picsum.photos/seed/emp1/100/100",
+      "imageHint": "woman portrait"
+    },
+    {
+      "id": "emp2",
+      "description": "Avatar for Bob Williams",
+      "imageUrl": "https://picsum.photos/seed/emp2/100/100",
+      "imageHint": "man portrait"
+    },
+    {
+      "id": "emp3",
+      "description": "Avatar for Charlie Brown",
+      "imageUrl": "https://picsum.photos/seed/emp3/100/100",
+      "imageHint": "man smiling"
+    },
+    {
+      "id": "emp4",
+      "description": "Avatar for Diana Miller",
+      "imageUrl": "https://picsum.photos/seed/emp4/100/100",
+      "imageHint": "woman smiling"
+    },
+    {
+      "id": "emp5",
+      "description": "Avatar for Ethan Garcia",
+      "imageUrl": "https://picsum.photos/seed/emp5/100/100",
+      "imageHint": "man professional"
+    },
+    {
+      "id": "emp6",
+      "description": "Avatar for Fiona Rodriguez",
+      "imageUrl": "https://picsum.photos/seed/emp6/100/100",
+      "imageHint": "woman professional"
+    },
+    {
+      "id": "emp7",
+      "description": "Avatar for George Smith",
+      "imageUrl": "https://picsum.photos/seed/emp7/100/100",
+      "imageHint": "man glasses"
+    },
+    {
+      "id": "emp8",
+      "description": "Avatar for Hannah Davis",
+      "imageUrl": "https://picsum.photos/seed/emp8/100/100",
+      "imageHint": "woman glasses"
+    },
+    {
+      "id": "emp9",
+      "description": "Avatar for Ian Martinez",
+      "imageUrl": "https://picsum.photos/seed/emp9/100/100",
+      "imageHint": "man corporate"
+    },
+    {
+      "id": "emp10",
+      "description": "Avatar for Jane Wilson",
+      "imageUrl": "https://picsum.photos/seed/emp10/100/100",
+      "imageHint": "woman corporate"
+    }
+  ]
 }
