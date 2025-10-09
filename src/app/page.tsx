@@ -36,7 +36,7 @@ export default function AuthenticationPage() {
       
       toast({
         title: "Authentication Successful",
-        description: `Welcome, ${employee.name}. Redirecting to your ticket...`,
+        description: `Welcome, ${employee.name}. Generating your ticket...`,
       });
 
       const ticketData = {
@@ -47,12 +47,11 @@ export default function AuthenticationPage() {
       };
 
       // Redirect to the ticket page with ticket data
-      setTimeout(() => {
-        const params = new URLSearchParams({
-            ticket: JSON.stringify(ticketData),
-        });
-        router.push(`/ticket?${params.toString()}`);
-      }, 1500);
+      const params = new URLSearchParams({
+          ticket: JSON.stringify(ticketData),
+      });
+      router.push(`/ticket?${params.toString()}`);
+
 
       // On a failed scan, you would handle the error state:
       // setIsScanning(false);

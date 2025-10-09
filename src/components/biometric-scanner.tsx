@@ -34,7 +34,7 @@ export default function BiometricScanner({
         <Fingerprint 
           className={`h-24 w-24 text-primary transition-opacity duration-300 ${isScanning ? 'opacity-20' : 'opacity-100'}`} 
         />
-        <div className="absolute inset-0 rounded-full fingerprint-glow" />
+        {isScanning && <div className="absolute inset-0 rounded-full fingerprint-glow" />}
       </>
     );
   };
