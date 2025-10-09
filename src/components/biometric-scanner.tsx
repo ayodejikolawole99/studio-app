@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Fingerprint, Loader2, CheckCircle2, User } from 'lucide-react';
+import { Fingerprint, Loader2, CheckCircle2, XCircle, User } from 'lucide-react';
 
 interface BiometricScannerProps {
   employees: Employee[];
@@ -14,6 +14,7 @@ interface BiometricScannerProps {
   onScan: () => void;
   isScanning: boolean;
   isAuthenticated: boolean;
+  scanError?: boolean;
 }
 
 export default function BiometricScanner({
@@ -23,14 +24,33 @@ export default function BiometricScanner({
   onScan,
   isScanning,
   isAuthenticated,
+  scanError,
 }: BiometricScannerProps) {
+  
+  const getScanStateIcon = () => {
+    if (isAuthenticated) {
+      return <CheckCircle2 className="h-24 w-24 text-green-500 animate-in fade-in zoom-in-50" />;
+    }
+    if (scanError) {
+      return <XCircle className="h-24 w-24 text-destructive animate-in fade-in zoom-in-50" />;
+    }
+    return (
+      <>
+        <Fingerprint 
+          className={`h-24 w-24 text-primary transition-opacity duration-300 ${isScanning ? 'opacity-20' : 'opacity-100'}`} 
+        />
+        <div className="absolute inset-0 rounded-full fingerprint-glow" />
+      </>
+    );
+  };
+  
   return (
     <Card className="h-full flex flex-col">
       <CardHeader>
         <CardTitle className="font-headline flex items-center gap-2">
           <Fingerprint /> Biometric Authentication
         </CardTitle>
-        <CardDescription>Select an employee and scan their biometric data.</CardDescription>
+        <CardDescription>Select your name and scan your fingerprint to proceed.</CardDescription>
       </CardHeader>
       <CardContent className="flex-grow flex flex-col items-center justify-center gap-6">
         <div className="w-full max-w-xs">
@@ -55,19 +75,10 @@ export default function BiometricScanner({
         </div>
 
         <div className="relative flex h-40 w-40 items-center justify-center rounded-full bg-muted/50">
-          {isAuthenticated ? (
-            <CheckCircle2 className="h-24 w-24 text-green-500 animate-in fade-in zoom-in-50" />
-          ) : (
-            <>
-              <Fingerprint 
-                className={`h-24 w-24 text-primary transition-opacity duration-300 ${isScanning ? 'opacity-20' : 'opacity-100'}`} 
-              />
-              <div className="absolute inset-0 rounded-full fingerprint-glow" />
-            </>
-          )}
+          {getScanStateIcon()}
         </div>
         
-        {selectedEmployee && (
+        {selectedEmployee && !isAuthenticated && !scanError && (
             <div className="text-center">
                 <p className="font-medium text-lg">{selectedEmployee.name}</p>
                 <p className="text-sm text-muted-foreground">{selectedEmployee.id}</p>
@@ -76,14 +87,19 @@ export default function BiometricScanner({
 
       </CardContent>
       <CardFooter>
-        <Button onClick={onScan} disabled={isScanning || !selectedEmployee} className="w-full">
+        <Button onClick={onScan} disabled={isScanning || !selectedEmployee || isAuthenticated} className="w-full">
           {isScanning ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Scanning...
             </>
+          ) : isAuthenticated ? (
+            <>
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              Authenticated
+            </>
           ) : (
-            'Authenticate & Generate Ticket'
+            'Scan Fingerprint'
           )}
         </Button>
       </CardFooter>

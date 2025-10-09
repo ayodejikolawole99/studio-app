@@ -1,0 +1,51 @@
+'use client';
+
+import { Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import MealTicket from '@/components/meal-ticket';
+import { Button } from '@/components/ui/button';
+import type { TicketData } from '@/lib/types';
+import { Home } from 'lucide-react';
+
+function TicketPageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const ticketJSON = searchParams.get('ticket');
+  
+  let ticket: TicketData | null = null;
+  if (ticketJSON) {
+    const parsed = JSON.parse(ticketJSON);
+    ticket = {
+      ...parsed,
+      timestamp: new Date(parsed.timestamp),
+    };
+  }
+
+  return (
+    <main className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md space-y-6">
+        <header className="text-center">
+            <h1 className="font-headline text-3xl font-bold tracking-tight text-foreground">
+              Your Meal Ticket
+            </h1>
+            <p className="mt-1 text-muted-foreground">
+              Present this ticket at the canteen.
+            </p>
+        </header>
+        <MealTicket ticket={ticket} />
+        <Button onClick={() => router.push('/')} variant="outline" className="w-full">
+          <Home className="mr-2"/>
+          Back to Authentication
+        </Button>
+      </div>
+    </main>
+  );
+}
+
+export default function TicketPage() {
+    return (
+        <Suspense fallback={<div>Loading ticket...</div>}>
+            <TicketPageContent />
+        </Suspense>
+    )
+}
