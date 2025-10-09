@@ -21,6 +21,5 @@ export type TicketData = {
 export type AnalysisData = {
   trends: string;
   peakHours: string;
-  popularFoodItems: string;
   overallAnalysis: string;
 };

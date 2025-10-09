@@ -17,8 +17,8 @@ const AnalyzeEmployeeConsumptionTrendsInputSchema = z.object({
 export type AnalyzeEmployeeConsumptionTrendsInput = z.infer<typeof AnalyzeEmployeeConsumptionTrendsInputSchema>;
 
 const AnalyzeEmployeeConsumptionTrendsOutputSchema = z.object({
-  trends: z.string().describe('A summary of the identified trends in employee feeding habits.'),
-  peakHours: z.string().describe('The peak hours during which employees consume food at the canteen.'),
+  trends: z.string().describe('A summary of the identified trends in employee ticket printing habits.'),
+  peakHours: z.string().describe('The peak hours during which employees print tickets at the canteen.'),
   overallAnalysis: z.string().describe('An overall analysis of the employee consumption patterns, including suggestions for optimizing canteen resources and reducing waste.'),
 });
 export type AnalyzeEmployeeConsumptionTrendsOutput = z.infer<typeof AnalyzeEmployeeConsumptionTrendsOutputSchema>;
@@ -27,11 +27,7 @@ export async function analyzeEmployeeConsumptionTrends(
     input: AnalyzeEmployeeConsumptionTrendsInput
 ): Promise<AnalyzeEmployeeConsumptionTrendsOutput> {
   const result = await analyzeEmployeeConsumptionTrendsFlow(input);
-  return {
-      ...result,
-      // The AI is being told not to track this, so we hardcode the response.
-      popularFoodItems: "Food item tracking is not applicable."
-  }
+  return result;
 }
 
 const prompt = ai.definePrompt({
@@ -58,11 +54,7 @@ const analyzeEmployeeConsumptionTrendsFlow = ai.defineFlow(
   {
     name: 'analyzeEmployeeConsumptionTrendsFlow',
     inputSchema: AnalyzeEmployeeConsumptionTrendsInputSchema,
-    outputSchema: z.object({
-        trends: AnalyzeEmployeeConsumptionTrendsOutputSchema.shape.trends,
-        peakHours: AnalyzeEmployeeConsumptionTrendsOutputSchema.shape.peakHours,
-        overallAnalysis: AnalyzeEmployeeConsumptionTrendsOutputSchema.shape.overallAnalysis,
-    }),
+    outputSchema: AnalyzeEmployeeConsumptionTrendsOutputSchema,
   },
   async input => {
     const {output} = await prompt(input);
