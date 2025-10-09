@@ -1,3 +1,28 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "staff-eating-1",
+      "description": "A group of colleagues enjoying lunch together at a table.",
+      "imageUrl": "https://picsum.photos/seed/eat1/1920/1080",
+      "imageHint": "people eating"
+    },
+    {
+      "id": "staff-eating-2",
+      "description": "Smiling employees sharing a meal in a bright, modern canteen.",
+      "imageUrl": "https://picsum.photos/seed/eat2/1920/1080",
+      "imageHint": "colleagues lunch"
+    },
+    {
+      "id": "staff-eating-3",
+      "description": "A close-up of diverse hands reaching for food at a communal table.",
+      "imageUrl": "https://picsum.photos/seed/eat3/1920/1080",
+      "imageHint": "sharing food"
+    },
+    {
+      "id": "staff-eating-4",
+      "description": "Two coworkers laughing and talking over their lunch break.",
+      "imageUrl": "https://picsum.photos/seed/eat4/1920/1080",
+      "imageHint": "happy employees"
+    }
+  ]
 }

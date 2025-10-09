@@ -6,6 +6,7 @@ import type { Employee } from '@/lib/types';
 import { employees } from '@/lib/data';
 import BiometricScanner from '@/components/biometric-scanner';
 import { useToast } from "@/hooks/use-toast"
+import BackgroundSlideshow from '@/components/background-slideshow';
 
 export default function AuthenticationPage() {
   const [isScanning, setIsScanning] = useState(false);
@@ -59,26 +60,32 @@ export default function AuthenticationPage() {
   };
 
   return (
-    <main 
-      className="min-h-screen flex items-center justify-center bg-background p-4 bg-contain bg-no-repeat bg-center"
-      style={{backgroundImage: "url('https://upload.wikimedia.org/wikipedia/commons/3/3d/Graphic_Packaging_International_Logo.jpg')", backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}
-    >
-        <div className="w-full max-w-md">
-            <header className="mb-8 text-center bg-background/80 backdrop-blur-sm p-4 rounded-xl">
-                <h1 className="font-headline text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-                Canteen Biometric
-                </h1>
-                <p className="mt-2 text-lg text-muted-foreground">
-                Please scan your fingerprint to generate your meal ticket.
-                </p>
-            </header>
-            <BiometricScanner
-                onScan={handleScan}
-                isScanning={isScanning}
-                isAuthenticated={isAuthenticated}
-                authenticatedEmployee={authenticatedEmployee}
-            />
-        </div>
-    </main>
+    <>
+      <BackgroundSlideshow />
+      <div 
+        className="fixed inset-0 -z-10 bg-contain bg-no-repeat bg-center opacity-10"
+        style={{backgroundImage: "url('https://upload.wikimedia.org/wikipedia/commons/3/3d/Graphic_Packaging_International_Logo.jpg')"}}
+      ></div>
+      <main 
+        className="min-h-screen flex items-center justify-center bg-transparent p-4"
+      >
+          <div className="w-full max-w-md">
+              <header className="mb-8 text-center bg-background/80 backdrop-blur-sm p-4 rounded-xl">
+                  <h1 className="font-headline text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+                  Canteen Biometric
+                  </h1>
+                  <p className="mt-2 text-lg text-muted-foreground">
+                  Please scan your fingerprint to generate your meal ticket.
+                  </p>
+              </header>
+              <BiometricScanner
+                  onScan={handleScan}
+                  isScanning={isScanning}
+                  isAuthenticated={isAuthenticated}
+                  authenticatedEmployee={authenticatedEmployee}
+              />
+          </div>
+      </main>
+    </>
   );
 }

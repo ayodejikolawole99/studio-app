@@ -6,6 +6,7 @@ import MealTicket from '@/components/meal-ticket';
 import { Button } from '@/components/ui/button';
 import type { TicketData } from '@/lib/types';
 import { Home } from 'lucide-react';
+import BackgroundSlideshow from '@/components/background-slideshow';
 
 function TicketPageContent() {
   const searchParams = useSearchParams();
@@ -22,26 +23,32 @@ function TicketPageContent() {
   }
 
   return (
-    <main 
-      className="min-h-screen flex items-center justify-center bg-background p-4 bg-contain bg-no-repeat bg-center"
-      style={{backgroundImage: "url('https://upload.wikimedia.org/wikipedia/commons/3/3d/Graphic_Packaging_International_Logo.jpg')", backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}
-    >
-      <div className="w-full max-w-md space-y-6">
-        <header className="text-center bg-background/80 backdrop-blur-sm p-4 rounded-xl">
-            <h1 className="font-headline text-3xl font-bold tracking-tight text-foreground">
-              Your Meal Ticket
-            </h1>
-            <p className="mt-1 text-muted-foreground">
-              Present this ticket at the canteen.
-            </p>
-        </header>
-        <MealTicket ticket={ticket} />
-        <Button onClick={() => router.push('/')} variant="outline" className="w-full">
-          <Home className="mr-2"/>
-          Back to Authentication
-        </Button>
-      </div>
-    </main>
+    <>
+      <BackgroundSlideshow />
+      <div 
+        className="fixed inset-0 -z-10 bg-contain bg-no-repeat bg-center opacity-10"
+        style={{backgroundImage: "url('https://upload.wikimedia.org/wikipedia/commons/3/3d/Graphic_Packaging_International_Logo.jpg')"}}
+      ></div>
+      <main 
+        className="min-h-screen flex items-center justify-center bg-transparent p-4"
+      >
+        <div className="w-full max-w-md space-y-6">
+          <header className="text-center bg-background/80 backdrop-blur-sm p-4 rounded-xl">
+              <h1 className="font-headline text-3xl font-bold tracking-tight text-foreground">
+                Your Meal Ticket
+              </h1>
+              <p className="mt-1 text-muted-foreground">
+                Present this ticket at the canteen.
+              </p>
+          </header>
+          <MealTicket ticket={ticket} />
+          <Button onClick={() => router.push('/')} variant="outline" className="w-full">
+            <Home className="mr-2"/>
+            Back to Authentication
+          </Button>
+        </div>
+      </main>
+    </>
   );
 }
 

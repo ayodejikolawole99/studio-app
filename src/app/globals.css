@@ -107,4 +107,13 @@ body {
   .fingerprint-glow {
     animation: pulse-glow 3s ease-in-out infinite;
   }
+  
+  @keyframes crossfade {
+    0%, 20%, 100% { opacity: 0; }
+    5%, 15% { opacity: 1; }
+  }
+
+  .slideshow-image {
+    animation: crossfade 20s linear infinite;
+  }
 }
