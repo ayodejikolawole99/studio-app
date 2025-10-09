@@ -93,6 +93,5 @@ export default function IndividualTicketControl({ employees, onUpdate }: Individ
                 </Button>
             </CardFooter>
         </Card>
-    </Card>
     );
 }
