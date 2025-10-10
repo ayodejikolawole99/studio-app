@@ -37,7 +37,7 @@ const nextConfig: NextConfig = {
     ],
   },
   devIndicators: {
-    buildActivityPosition: 'bottom-right',
+    position: 'bottom-right',
   },
 };
 
