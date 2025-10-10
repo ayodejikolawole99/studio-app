@@ -29,17 +29,15 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
       {
-        protocol: 'https',
+        protocol: 'https' as const,
         hostname: 'upload.wikimedia.org',
         port: '',
         pathname: '/**',
       },
     ],
   },
-  experimental: {
-    // This allows the Next.js dev server to accept requests from the
-    // Firebase Studio development environment.
-    allowedDevOrigins: ['https://*.cloudworkstations.dev'],
+  devIndicators: {
+    buildActivityPosition: 'bottom-right',
   },
 };
 
