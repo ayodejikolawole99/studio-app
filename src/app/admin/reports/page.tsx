@@ -119,36 +119,55 @@ export default function ReportsPage() {
   const totalTickets = filteredData.length;
   const uniqueUsers = new Set(filteredData.map(r => r.employeeId)).size;
 
+  const exportHeaders = ["Employee Number", "Employee Name", "Department", "Time Printed"];
+
   const handleExportPDF = () => {
     const doc = new jsPDF();
-    const data = activeTab === 'user' ? userReportData : departmentReportData;
-    const headers = activeTab === 'user' ? ["Employee", "Tickets Printed"] : ["Department", "Tickets Printed"];
-    const title = `Report: Prints per ${activeTab} (${timeFrame})`;
+    const title = `Detailed Print Report (${timeFrame})`;
     
     doc.text(title, 14, 16);
     autoTable(doc, {
-      head: [headers],
-      body: data.map(item => [item.name, item.count]),
+      head: [exportHeaders],
+      body: filteredData.map(item => [
+          item.employeeId,
+          item.employeeName,
+          item.department,
+          item.timestamp.toLocaleString()
+      ]),
       startY: 20,
     });
     
-    doc.save(`report_${activeTab}_${timeFrame}.pdf`);
+    doc.save(`detailed_report_${timeFrame}.pdf`);
   };
 
   const handleExportExcel = () => {
-    const data = activeTab === 'user' ? userReportData : departmentReportData;
-    const headers = activeTab === 'user' ? ["Employee", "Tickets Printed"] : ["Department", "Tickets Printed"];
-
     const worksheetData = [
-      headers,
-      ...data.map(item => [item.name, item.count])
+      exportHeaders,
+      ...filteredData.map(item => [
+          item.employeeId,
+          item.employeeName,
+          item.department,
+          item.timestamp.toLocaleString()
+      ])
     ];
 
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Report');
+    XLSX.utils.sheet_add_aoa(worksheet, [], { origin: -1 });
 
-    XLSX.writeFile(workbook, `report_${activeTab}_${timeFrame}.xlsx`);
+    // Set column widths
+    const colWidths = [
+        { wch: 15 }, // Employee Number
+        { wch: 25 }, // Employee Name
+        { wch: 20 }, // Department
+        { wch: 25 }, // Time Printed
+    ];
+    worksheet['!cols'] = colWidths;
+
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Detailed Report');
+
+    XLSX.writeFile(workbook, `detailed_report_${timeFrame}.xlsx`);
   };
 
   return (
@@ -175,11 +194,11 @@ export default function ReportsPage() {
                 </SelectContent>
             </Select>
             <div className="flex gap-2">
-              <Button onClick={handleExportPDF} variant="outline" className="w-full">
+              <Button onClick={handleExportPDF} variant="outline" className="w-full" disabled={filteredData.length === 0}>
                   <FileDown className="mr-2 h-4 w-4" />
                   PDF
               </Button>
-              <Button onClick={handleExportExcel} variant="outline" className="w-full">
+              <Button onClick={handleExportExcel} variant="outline" className="w-full" disabled={filteredData.length === 0}>
                   <FileDown className="mr-2 h-4 w-4" />
                   Excel
               </Button>
