@@ -12,6 +12,7 @@ import {
   SidebarMenuButton,
   SidebarFooter,
   SidebarInset,
+  SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { Users, Ticket, BarChart3, Settings, LayoutDashboard } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
