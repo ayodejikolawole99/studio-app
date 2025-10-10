@@ -6,10 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { subDays, subWeeks, subMonths, startOfDay } from 'date-fns';
-import { Ticket, Users, BarChart3 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { subDays, subWeeks, subMonths, startOfDay, format } from 'date-fns';
+import { Ticket, Users, BarChart3, FileDown } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 type TimeFrame = 'day' | 'week' | 'month' | 'all';
+type ReportType = 'user' | 'department';
 
 const filterRecordsByTimeFrame = (records: FeedingRecord[], timeFrame: TimeFrame): FeedingRecord[] => {
     const now = new Date();
@@ -99,6 +104,7 @@ const StatCard = ({ title, value, icon }: { title: string, value: string | numbe
 export default function ReportsPage() {
   const context = useContext(FeedingDataContext);
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('day');
+  const [activeTab, setActiveTab] = useState<ReportType>('user');
 
   if (!context) {
     return <p>Loading reports...</p>;
@@ -113,6 +119,38 @@ export default function ReportsPage() {
   const totalTickets = filteredData.length;
   const uniqueUsers = new Set(filteredData.map(r => r.employeeId)).size;
 
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+    const data = activeTab === 'user' ? userReportData : departmentReportData;
+    const headers = activeTab === 'user' ? ["Employee", "Tickets Printed"] : ["Department", "Tickets Printed"];
+    const title = `Report: Prints per ${activeTab} (${timeFrame})`;
+    
+    doc.text(title, 14, 16);
+    autoTable(doc, {
+      head: [headers],
+      body: data.map(item => [item.name, item.count]),
+      startY: 20,
+    });
+    
+    doc.save(`report_${activeTab}_${timeFrame}.pdf`);
+  };
+
+  const handleExportExcel = () => {
+    const data = activeTab === 'user' ? userReportData : departmentReportData;
+    const headers = activeTab === 'user' ? ["Employee", "Tickets Printed"] : ["Department", "Tickets Printed"];
+
+    const worksheetData = [
+      headers,
+      ...data.map(item => [item.name, item.count])
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Report');
+
+    XLSX.writeFile(workbook, `report_${activeTab}_${timeFrame}.xlsx`);
+  };
+
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -124,17 +162,29 @@ export default function ReportsPage() {
             Analyze printing trends by user and department.
             </p>
         </div>
-        <Select value={timeFrame} onValueChange={(v) => setTimeFrame(v as TimeFrame)}>
-            <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Select a timeframe" />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="day">Today</SelectItem>
-                <SelectItem value="week">This Week</SelectItem>
-                <SelectItem value="month">This Month</SelectItem>
-                <SelectItem value="all">All Time</SelectItem>
-            </SelectContent>
-        </Select>
+        <div className="flex flex-col sm:flex-row gap-2">
+            <Select value={timeFrame} onValueChange={(v) => setTimeFrame(v as TimeFrame)}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="Select a timeframe" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="day">Today</SelectItem>
+                    <SelectItem value="week">This Week</SelectItem>
+                    <SelectItem value="month">This Month</SelectItem>
+                    <SelectItem value="all">All Time</SelectItem>
+                </SelectContent>
+            </Select>
+            <div className="flex gap-2">
+              <Button onClick={handleExportPDF} variant="outline" className="w-full">
+                  <FileDown className="mr-2 h-4 w-4" />
+                  PDF
+              </Button>
+              <Button onClick={handleExportExcel} variant="outline" className="w-full">
+                  <FileDown className="mr-2 h-4 w-4" />
+                  Excel
+              </Button>
+            </div>
+        </div>
       </header>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -143,7 +193,7 @@ export default function ReportsPage() {
         <StatCard title="Average per User" value={uniqueUsers > 0 ? (totalTickets / uniqueUsers).toFixed(1) : 0} icon={<BarChart3 className="h-4 w-4 text-muted-foreground" />} />
       </div>
 
-      <Tabs defaultValue="user">
+      <Tabs defaultValue="user" onValueChange={(v) => setActiveTab(v as ReportType)}>
         <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="user">Per User</TabsTrigger>
             <TabsTrigger value="department">Per Department</TabsTrigger>
