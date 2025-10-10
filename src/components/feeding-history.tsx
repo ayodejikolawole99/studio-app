@@ -17,7 +17,7 @@ export default function FeedingHistory({ records }: FeedingHistoryProps) {
         <CardTitle className="font-headline flex items-center gap-2">
           <History /> Recent Prints
         </CardTitle>
-        <CardDescription>A log of recently printed tickets.</CardDescription>
+        <CardDescription>A log of the 10 most recently printed tickets.</CardDescription>
       </CardHeader>
       <CardContent className="p-0 flex-grow">
         <ScrollArea className="h-[360px]">

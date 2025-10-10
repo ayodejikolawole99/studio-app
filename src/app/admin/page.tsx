@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useTransition, useMemo } from 'react';
-import type { FeedingRecord, AnalysisData } from '@/lib/types';
-import { employees } from '@/lib/data';
+import { useState, useTransition, useMemo, useContext } from 'react';
+import type { AnalysisData } from '@/lib/types';
 import ConsumptionAnalysis from '@/components/consumption-analysis';
 import { analyzeEmployeeConsumptionTrends } from '@/ai/flows/analyze-employee-consumption-trends';
 import { useToast } from "@/hooks/use-toast"
@@ -10,6 +9,7 @@ import FeedingHistory from '@/components/feeding-history';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Ticket, Users, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { FeedingDataContext } from '@/context/feeding-data-context';
 
 const StatCard = ({ title, value, icon }: { title: string, value: string | number, icon: React.ReactNode }) => (
     <Card>
@@ -24,21 +24,15 @@ const StatCard = ({ title, value, icon }: { title: string, value: string | numbe
 );
 
 export default function AdminDashboardPage() {
-  const [feedingRecords, setFeedingRecords] = useState<FeedingRecord[]>([]);
+  const context = useContext(FeedingDataContext);
+  if (!context) {
+    throw new Error('AdminDashboardPage must be used within a FeedingDataProvider');
+  }
+  const { feedingRecords, addMockRecord } = context;
+  
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [isAnalyzing, startAnalysisTransition] = useTransition();
   const { toast } = useToast();
-
-  const addMockRecord = () => {
-    const randomEmployee = employees[Math.floor(Math.random() * employees.length)];
-    const newRecord: FeedingRecord = {
-        id: `FR-${Date.now()}`,
-        employeeId: randomEmployee.id,
-        employeeName: randomEmployee.name,
-        timestamp: new Date(),
-      };
-    setFeedingRecords(prev => [newRecord, ...prev]);
-  }
 
   const handleAnalysis = () => {
     if(feedingRecords.length === 0){
@@ -68,17 +62,23 @@ export default function AdminDashboardPage() {
       }
     });
   };
+  
+  const ticketsToday = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return feedingRecords.filter(r => r.timestamp >= today).length;
+  }, [feedingRecords]);
 
   const ticketsThisWeek = useMemo(() => {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    return feedingRecords.filter(r => r.timestamp > oneWeekAgo).length;
+    return feedingRecords.filter(r => r.timestamp >= oneWeekAgo).length;
   }, [feedingRecords]);
 
   const uniqueEmployeesToday = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const uniqueIds = new Set(feedingRecords.filter(r => r.timestamp > today).map(r => r.employeeId));
+    const uniqueIds = new Set(feedingRecords.filter(r => r.timestamp >= today).map(r => r.employeeId));
     return uniqueIds.size;
   }, [feedingRecords]);
 
@@ -94,14 +94,14 @@ export default function AdminDashboardPage() {
       </header>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <StatCard title="Tickets Printed (Today)" value={feedingRecords.length} icon={<Ticket className="h-4 w-4 text-muted-foreground" />} />
+        <StatCard title="Tickets Printed (Today)" value={ticketsToday} icon={<Ticket className="h-4 w-4 text-muted-foreground" />} />
         <StatCard title="Tickets Printed (This Week)" value={ticketsThisWeek} icon={<Calendar className="h-4 w-4 text-muted-foreground" />} />
         <StatCard title="Unique Employees (Today)" value={uniqueEmployeesToday} icon={<Users className="h-4 w-4 text-muted-foreground" />} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8">
         <div className="lg:col-span-2 space-y-4">
-           <FeedingHistory records={feedingRecords} />
+           <FeedingHistory records={feedingRecords.slice(0,10)} />
            <Button onClick={addMockRecord} className="w-full">Add Mock Printing Record</Button>
         </div>
 

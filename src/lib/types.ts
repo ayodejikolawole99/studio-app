@@ -10,6 +10,7 @@ export type FeedingRecord = {
   id: string;
   employeeId: string;
   employeeName: string;
+  department: string;
   timestamp: Date;
 };
 
