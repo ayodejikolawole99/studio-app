@@ -16,7 +16,7 @@ export type FeedingRecord = {
 
 export type TicketData = {
   ticketId: string;
-  employeeName: string;
+  employeeName:string;
   timestamp: Date;
 };
 
@@ -24,4 +24,11 @@ export type AnalysisData = {
   trends: string;
   peakHours: string;
   overallAnalysis: string;
+};
+
+export type User = {
+  id: string;
+  name: string;
+  email: string;
+  role: 'ADMIN' | 'OPERATOR';
 };

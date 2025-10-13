@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -26,20 +27,39 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { FeedingDataProvider } from '@/context/feeding-data-context';
+import { AuthProvider, useAuth } from '@/context/auth-context';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 const navItems = [
-    { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/admin/staff', label: 'Staff Management', icon: Users },
-    { href: '/admin/tickets', label: 'Ticket Management', icon: Ticket },
-    { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
+    { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'OPERATOR'] },
+    { href: '/admin/staff', label: 'Staff Management', icon: Users, roles: ['ADMIN'] },
+    { href: '/admin/tickets', label: 'Ticket Management', icon: Ticket, roles: ['ADMIN', 'OPERATOR'] },
+    { href: '/admin/reports', label: 'Reports', icon: BarChart3, roles: ['ADMIN', 'OPERATOR'] },
 ];
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function AdminProtectedLayout({ children }: { children: React.ReactNode }) {
+  const { user, loading, logout } = useAuth();
+  const router = useRouter();
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+  if (loading || !user) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('');
+  }
 
   return (
     <FeedingDataProvider>
@@ -53,7 +73,9 @@ export default function AdminLayout({
                     </SidebarHeader>
 
                     <SidebarMenu className="flex-grow">
-                        {navItems.map((item) => (
+                        {navItems
+                          .filter(item => item.roles.includes(user.role))
+                          .map((item) => (
                             <SidebarMenuItem key={item.href}>
                                 <Link href={item.href}>
                                     <SidebarMenuButton 
@@ -73,11 +95,11 @@ export default function AdminLayout({
                           <DropdownMenuTrigger asChild>
                               <Button variant="ghost" className="justify-start gap-2 p-2 h-auto w-full">
                                     <Avatar className="h-8 w-8">
-                                        <AvatarFallback>AD</AvatarFallback>
+                                        <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
                                     </Avatar>
                                     <div className="text-left group-data-[collapsible=icon]:hidden">
-                                        <p className="font-medium text-sm">Admin User</p>
-                                        <p className="text-xs text-muted-foreground">admin@example.com</p>
+                                        <p className="font-medium text-sm">{user.name}</p>
+                                        <p className="text-xs text-muted-foreground">{user.email}</p>
                                     </div>
                               </Button>
                           </DropdownMenuTrigger>
@@ -87,7 +109,7 @@ export default function AdminLayout({
                             <DropdownMenuItem>Profile</DropdownMenuItem>
                             <DropdownMenuItem>Settings</DropdownMenuItem>
                             <DropdownMenuSeparator />
-                             <DropdownMenuItem onClick={() => window.location.href = '/'}>
+                             <DropdownMenuItem onClick={() => logout()}>
                               Log out
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -111,4 +133,12 @@ export default function AdminLayout({
         </SidebarProvider>
     </FeedingDataProvider>
   );
+}
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthProvider>
+      <AdminProtectedLayout>{children}</AdminProtectedLayout>
+    </AuthProvider>
+  )
 }
