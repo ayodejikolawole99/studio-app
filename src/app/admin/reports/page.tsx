@@ -17,23 +17,28 @@ type TimeFrame = 'day' | 'week' | 'month' | 'all';
 type ReportType = 'user' | 'department';
 
 const filterRecordsByTimeFrame = (records: FeedingRecord[], timeFrame: TimeFrame): FeedingRecord[] => {
+    if (!records) return [];
     const now = new Date();
+    const recordsWithDates = records.map(r => ({...r, timestamp: (r.timestamp as any).toDate ? (r.timestamp as any).toDate() : new Date(r.timestamp) }));
+
     switch (timeFrame) {
         case 'day':
-            return records.filter(r => r.timestamp >= startOfDay(now));
+            return recordsWithDates.filter(r => r.timestamp >= startOfDay(now));
         case 'week':
-            return records.filter(r => r.timestamp >= subWeeks(now, 1));
+            return recordsWithDates.filter(r => r.timestamp >= subWeeks(now, 1));
         case 'month':
-            return records.filter(r => r.timestamp >= subMonths(now, 1));
+            return recordsWithDates.filter(r => r.timestamp >= subMonths(now, 1));
         case 'all':
         default:
-            return records;
+            return recordsWithDates;
     }
 };
 
 const aggregateByUser = (records: FeedingRecord[]) => {
+    if (!records) return [];
     const userCounts = records.reduce((acc, record) => {
-        acc[record.employeeName] = (acc[record.employeeName] || 0) + 1;
+        const name = record.employeeName || 'Unknown Employee';
+        acc[name] = (acc[name] || 0) + 1;
         return acc;
     }, {} as Record<string, number>);
 
@@ -43,6 +48,7 @@ const aggregateByUser = (records: FeedingRecord[]) => {
 };
 
 const aggregateByDepartment = (records: FeedingRecord[]) => {
+    if (!records) return [];
     const departmentCounts = records.reduce((acc, record) => {
         const department = record.department || 'Unknown';
         acc[department] = (acc[department] || 0) + 1;

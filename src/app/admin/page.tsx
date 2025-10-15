@@ -51,7 +51,7 @@ export default function AdminDashboardPage() {
         const result = await analyzeEmployeeConsumptionTrends({
           feedingData: JSON.stringify(feedingRecords.map(r => ({
             employeeId: r.employeeId,
-            timestamp: r.timestamp.toISOString(),
+            timestamp: r.timestamp,
           }))),
         });
         setAnalysis(result);
