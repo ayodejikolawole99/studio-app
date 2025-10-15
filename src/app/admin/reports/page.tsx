@@ -1,6 +1,6 @@
 'use client';
 import { useState, useMemo, useContext } from 'react';
-import { FeedingDataContext } from '@/context/feeding-data-context';
+import { FeedingDataContext, FeedingDataProvider } from '@/context/feeding-data-context';
 import type { FeedingRecord } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -61,7 +61,7 @@ const aggregateByDepartment = (records: FeedingRecord[]) => {
 };
 
 
-const ReportTable = ({ title, data, headers }: { title: string, data: { name: string, count: number }[], headers: [string, string] }) => (
+const ReportTable = ({ title, data, headers }: { title: string, data: { name: string, count: number }[] | undefined, headers: [string, string] }) => (
     <Card>
         <CardHeader>
             <CardTitle>{title}</CardTitle>
@@ -75,13 +75,13 @@ const ReportTable = ({ title, data, headers }: { title: string, data: { name: st
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {data.map(item => (
+                    {data && data.map(item => (
                         <TableRow key={item.name}>
                             <TableCell className="font-medium">{item.name}</TableCell>
                             <TableCell className="text-right">{item.count}</TableCell>
                         </TableRow>
                     ))}
-                    {data.length === 0 && (
+                    {(!data || data.length === 0) && (
                         <TableRow>
                             <TableCell colSpan={2} className="text-center text-muted-foreground">
                                 No data for this period.
@@ -107,7 +107,7 @@ const StatCard = ({ title, value, icon }: { title: string, value: string | numbe
 );
 
 
-export default function ReportsPage() {
+function ReportsContent() {
   const context = useContext(FeedingDataContext);
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('day');
   const [activeTab, setActiveTab] = useState<ReportType>('user');
@@ -239,5 +239,13 @@ export default function ReportsPage() {
         </TabsContent>
       </Tabs>
     </div>
+  )
+}
+
+export default function ReportsPage() {
+  return (
+    <FeedingDataProvider>
+      <ReportsContent />
+    </FeedingDataProvider>
   )
 }

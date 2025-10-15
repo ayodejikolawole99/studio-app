@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition, useMemo, useContext } from 'react';
-import type { AnalysisData, FeedingRecord } from '@/lib/types';
+import type { AnalysisData } from '@/lib/types';
 import ConsumptionAnalysis from '@/components/consumption-analysis';
 import { analyzeEmployeeConsumptionTrends } from '@/ai/flows/analyze-employee-consumption-trends';
 import { useToast } from "@/hooks/use-toast"
@@ -9,7 +9,7 @@ import FeedingHistory from '@/components/feeding-history';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Ticket, Users, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { FeedingDataContext } from '@/context/feeding-data-context';
+import { FeedingDataContext, FeedingDataProvider } from '@/context/feeding-data-context';
 
 const StatCard = ({ title, value, icon, isLoading }: { title: string, value: string | number, icon: React.ReactNode, isLoading?: boolean }) => (
     <Card>
@@ -23,7 +23,7 @@ const StatCard = ({ title, value, icon, isLoading }: { title: string, value: str
     </Card>
 );
 
-export default function AdminDashboardPage() {
+function DashboardContent() {
   const context = useContext(FeedingDataContext);
   
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
@@ -68,7 +68,6 @@ export default function AdminDashboardPage() {
 
   const sortedRecords = useMemo(() => {
     if (!feedingRecords) return [];
-    // Firestore timestamps can be objects, ensure they are Date objects for sorting
     const recordsWithDates = feedingRecords.map(r => ({...r, timestamp: (r.timestamp as any).toDate ? (r.timestamp as any).toDate() : new Date(r.timestamp) }));
     return recordsWithDates.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }, [feedingRecords]);
@@ -128,4 +127,13 @@ export default function AdminDashboardPage() {
       </div>
     </div>
   );
+}
+
+
+export default function AdminDashboardPage() {
+  return (
+    <FeedingDataProvider>
+      <DashboardContent />
+    </FeedingDataProvider>
+  )
 }

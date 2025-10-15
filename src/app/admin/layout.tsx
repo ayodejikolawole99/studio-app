@@ -25,7 +25,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { FeedingDataProvider } from '@/context/feeding-data-context';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -57,88 +56,84 @@ function AdminProtectedLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // If there's no user, the useEffect above will handle the redirect.
-  // Rendering nothing here prevents the admin layout from briefly flashing
-  // before the redirect happens.
   if (!user) {
     return null;
   }
   
   const getInitials = (name: string) => {
+    if (!name) return '';
     return name.split(' ').map(n => n[0]).join('');
   }
 
   return (
-    <FeedingDataProvider>
-        <SidebarProvider>
-            <Sidebar>
-                <SidebarContent>
-                    <SidebarHeader>
-                        <div className="flex items-center gap-2">
-                            <Image src="https://upload.wikimedia.org/wikipedia/commons/3/3d/Graphic_Packaging_International_Logo.jpg" width={150} height={30} alt="Logo" className='m-4'/>
-                        </div>
-                    </SidebarHeader>
+      <SidebarProvider>
+          <Sidebar>
+              <SidebarContent>
+                  <SidebarHeader>
+                      <div className="flex items-center gap-2">
+                          <Image src="https://upload.wikimedia.org/wikipedia/commons/3/3d/Graphic_Packaging_International_Logo.jpg" width={150} height={30} alt="Logo" className='m-4'/>
+                      </div>
+                  </SidebarHeader>
 
-                    <SidebarMenu className="flex-grow">
-                        {navItems
-                          .filter(item => user.role && item.roles.includes(user.role))
-                          .map((item) => (
-                            <SidebarMenuItem key={item.href}>
-                                <Link href={item.href}>
-                                    <SidebarMenuButton 
-                                        isActive={pathname === item.href}
-                                        tooltip={item.label}
-                                    >
-                                        <item.icon />
-                                        <span>{item.label}</span>
-                                    </SidebarMenuButton>
-                                </Link>
-                            </SidebarMenuItem>
-                        ))}
-                    </SidebarMenu>
+                  <SidebarMenu className="flex-grow">
+                      {navItems
+                        .filter(item => user.role && item.roles.includes(user.role))
+                        .map((item) => (
+                          <SidebarMenuItem key={item.href}>
+                              <Link href={item.href}>
+                                  <SidebarMenuButton 
+                                      isActive={pathname === item.href}
+                                      tooltip={item.label}
+                                  >
+                                      <item.icon />
+                                      <span>{item.label}</span>
+                                  </SidebarMenuButton>
+                              </Link>
+                          </SidebarMenuItem>
+                      ))}
+                  </SidebarMenu>
 
-                    <SidebarFooter>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="justify-start gap-2 p-2 h-auto w-full">
-                                    <Avatar className="h-8 w-8">
-                                        <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-                                    </Avatar>
-                                    <div className="text-left group-data-[collapsible=icon]:hidden">
-                                        <p className="font-medium text-sm">{user.name}</p>
-                                        <p className="text-xs text-muted-foreground">{user.email}</p>
-                                    </div>
-                              </Button>
-                          </DropdownMenuTrigger>
-                           <DropdownMenuContent side="right" align="start">
-                            <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem>Profile</DropdownMenuItem>
-                            <DropdownMenuItem>Settings</DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                             <DropdownMenuItem onClick={() => logout()}>
-                              Log out
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                    </SidebarFooter>
-                </SidebarContent>
-            </Sidebar>
-            <SidebarInset>
-                <header className="flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-sm sm:h-16 md:px-6">
-                    <SidebarTrigger className="md:hidden" />
-                    <div className="flex-1">
-                        {/* Header content can go here */}
-                    </div>
-                    <Button variant="ghost" size="icon">
-                        <Settings />
-                        <span className="sr-only">Settings</span>
-                    </Button>
-                </header>
-                <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
-            </SidebarInset>
-        </SidebarProvider>
-    </FeedingDataProvider>
+                  <SidebarFooter>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="justify-start gap-2 p-2 h-auto w-full">
+                                  <Avatar className="h-8 w-8">
+                                      <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                                  </Avatar>
+                                  <div className="text-left group-data-[collapsible=icon]:hidden">
+                                      <p className="font-medium text-sm">{user.name}</p>
+                                      <p className="text-xs text-muted-foreground">{user.email}</p>
+                                  </div>
+                            </Button>
+                        </DropdownMenuTrigger>
+                         <DropdownMenuContent side="right" align="start">
+                          <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem>Profile</DropdownMenuItem>
+                          <DropdownMenuItem>Settings</DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                           <DropdownMenuItem onClick={() => logout()}>
+                            Log out
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                  </SidebarFooter>
+              </SidebarContent>
+          </Sidebar>
+          <SidebarInset>
+              <header className="flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-sm sm:h-16 md:px-6">
+                  <SidebarTrigger className="md:hidden" />
+                  <div className="flex-1">
+                      {/* Header content can go here */}
+                  </div>
+                  <Button variant="ghost" size="icon">
+                      <Settings />
+                      <span className="sr-only">Settings</span>
+                  </Button>
+              </header>
+              <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+          </SidebarInset>
+      </SidebarProvider>
   );
 }
 
