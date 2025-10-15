@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Employee } from '@/lib/types';
-import { employees } from '@/lib/data';
 import BiometricScanner from '@/components/biometric-scanner';
 import { useToast } from "@/hooks/use-toast"
+import { useCollection, useFirebase, addDocumentNonBlocking, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
+import { FirebaseClientProvider } from '@/firebase';
 
 export default function AuthenticationPage() {
   const [isScanning, setIsScanning] = useState(false);
@@ -13,8 +15,20 @@ export default function AuthenticationPage() {
   const [authenticatedEmployee, setAuthenticatedEmployee] = useState<Employee | null>(null);
   const router = useRouter();
   const { toast } = useToast();
+  const { firestore } = useFirebase();
 
-  const handleScan = () => {
+  const employeesCollection = useMemoFirebase(() =>
+    firestore ? collection(firestore, 'employees') : null
+  , [firestore]);
+
+  const { data: employees, isLoading: employeesLoading } = useCollection<Employee>(employeesCollection);
+
+  const handleScan = async () => {
+    if (employeesLoading || !employees) {
+        toast({ variant: "destructive", title: "System Busy", description: "Employee data is still loading. Please try again shortly." });
+        return;
+    }
+
     setIsScanning(true);
     setIsAuthenticated(false);
     setAuthenticatedEmployee(null);
@@ -24,8 +38,6 @@ export default function AuthenticationPage() {
     // actual biometric scanning and user identification from your database.
 
     // Simulate biometric scan and user identification
-    // In a real scenario, the biometric scanner would return the identified user.
-    // Here, we'll just pick a random employee to simulate a successful scan.
     const employee = employees[Math.floor(Math.random() * employees.length)];
     
     // On successful scan from the SecuGen device:
@@ -41,8 +53,20 @@ export default function AuthenticationPage() {
     const ticketData = {
       ticketId: `T-${Date.now()}`,
       employeeName: employee.name,
+      employeeId: employee.id,
+      department: employee.department,
       timestamp: new Date().toISOString(),
     };
+    
+    if(firestore) {
+      const feedingRecordsRef = collection(firestore, 'feedingRecords');
+      addDocumentNonBlocking(feedingRecordsRef, {
+          employeeId: employee.id,
+          employeeName: employee.name,
+          department: employee.department,
+          timestamp: new Date(),
+      });
+    }
 
     // Redirect to the ticket page with ticket data
     const params = new URLSearchParams({
@@ -59,7 +83,7 @@ export default function AuthenticationPage() {
   };
 
   return (
-    <>
+    <FirebaseClientProvider>
       <div 
         className="fixed inset-0 -z-10 bg-background/50"
       ></div>
@@ -87,6 +111,6 @@ export default function AuthenticationPage() {
               />
           </div>
       </main>
-    </>
+    </FirebaseClientProvider>
   );
 }

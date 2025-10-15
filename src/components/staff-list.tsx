@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Table,
   TableBody,
@@ -20,7 +19,6 @@ import { MoreHorizontal, PlusCircle, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { employees as initialEmployees } from '@/lib/data';
 import type { Employee } from '@/lib/types';
 import { StaffEditDialog } from './staff-edit-dialog';
 import {
@@ -34,18 +32,28 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { useCollection, useFirebase, setDocumentNonBlocking, deleteDocumentNonBlocking, useMemoFirebase } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
 
 export default function StaffList() {
-  const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
+  const { firestore } = useFirebase();
+  const employeesCollection = useMemoFirebase(() =>
+    firestore ? collection(firestore, 'employees') : null
+  , [firestore]);
+  const { data: employees, isLoading } = useCollection<Employee>(employeesCollection);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditOpen, setEditOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
 
-  const filteredEmployees = employees.filter((employee) =>
-    employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    employee.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    employee.department.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEmployees = useMemo(() => {
+      if (!employees) return [];
+      return employees.filter((employee) =>
+          employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          employee.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          employee.department.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+  }, [employees, searchTerm]);
 
   const handleAdd = () => {
     setSelectedEmployee(null);
@@ -58,22 +66,20 @@ export default function StaffList() {
   };
   
   const handleDelete = (employeeId: string) => {
-    // In a real app, you'd show a confirmation and then make an API call.
-    // For now, we just filter the local state.
-    setEmployees(employees.filter(emp => emp.id !== employeeId));
-    console.log(`Deleting employee ${employeeId}`);
+    if (!firestore) return;
+    const docRef = doc(firestore, 'employees', employeeId);
+    deleteDocumentNonBlocking(docRef);
   };
 
   const handleSave = (employeeData: Employee, isNew: boolean) => {
-    if (isNew) {
-      // Add new employee
-      const newEmployee = { ...employeeData }; // ID is now set in the dialog
-      setEmployees([newEmployee, ...employees]);
-    } else {
-      // Edit existing employee
-      setEmployees(employees.map(emp => emp.id === employeeData.id ? employeeData : emp));
-    }
+    if (!firestore) return;
+    const docRef = doc(firestore, 'employees', employeeData.id);
+    setDocumentNonBlocking(docRef, employeeData, { merge: !isNew });
   };
+
+  if (isLoading) {
+    return <p>Loading staff...</p>;
+  }
 
   return (
     <>
@@ -115,7 +121,7 @@ export default function StaffList() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">{employee.id}</TableCell>
                   <TableCell>{employee.department}</TableCell>
-                  <TableCell className="font-medium">{employee.ticketBalance}</TableCell>
+                  <TableCell className="font-medium">{employee.ticketBalance || 0}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

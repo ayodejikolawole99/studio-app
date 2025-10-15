@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -30,6 +29,7 @@ import { FeedingDataProvider } from '@/context/feeding-data-context';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { FirebaseClientProvider } from '@/firebase';
 
 const navItems = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'OPERATOR'] },
@@ -137,8 +137,10 @@ function AdminProtectedLayout({ children }: { children: React.ReactNode }) {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AuthProvider>
-      <AdminProtectedLayout>{children}</AdminProtectedLayout>
-    </AuthProvider>
+    <FirebaseClientProvider>
+      <AuthProvider>
+        <AdminProtectedLayout>{children}</AdminProtectedLayout>
+      </AuthProvider>
+    </FirebaseClientProvider>
   )
 }

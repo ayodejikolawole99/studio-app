@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -11,10 +10,11 @@ import { useToast } from '@/hooks/use-toast';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import Image from 'next/image';
 import { Loader2 } from 'lucide-react';
+import { FirebaseClientProvider } from '@/firebase';
 
 function LoginPageContent() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('admin@example.com');
+  const [password, setPassword] = useState('password');
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
@@ -94,8 +94,10 @@ function LoginPageContent() {
 
 export default function LoginPage() {
     return (
-        <AuthProvider>
-            <LoginPageContent />
-        </AuthProvider>
+        <FirebaseClientProvider>
+            <AuthProvider>
+                <LoginPageContent />
+            </AuthProvider>
+        </FirebaseClientProvider>
     )
 }

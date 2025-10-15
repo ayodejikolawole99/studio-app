@@ -1,17 +1,20 @@
-
 'use client';
 
 import { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import { Auth, onAuthStateChanged, signInWithEmailAndPassword, signOut, User as FirebaseUser } from 'firebase/auth';
 import type { User } from '@/lib/types';
+import { useFirebase } from '@/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
-// Mock users
-const mockUsers: User[] = [
-  { id: '1', name: 'Admin User', email: 'admin@example.com', role: 'ADMIN' },
-  { id: '2', name: 'Canteen Operator', email: 'operator@example.com', role: 'OPERATOR' },
+// Mock user roles are now stored in Firestore, but we can keep this for fallback/initial structure idea
+const mockUsers: Omit<User, 'id'>[] = [
+  { name: 'Admin User', email: 'admin@example.com', role: 'ADMIN' },
+  { name: 'Canteen Operator', email: 'operator@example.com', role: 'OPERATOR' },
 ];
 
 interface AuthContextType {
   user: User | null;
+  firebaseUser: FirebaseUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -21,51 +24,71 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const { auth, firestore } = useFirebase();
 
   useEffect(() => {
-    // Check for a logged-in user in localStorage
-    try {
-      const storedUser = localStorage.getItem('canteen-user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
-      }
-    } catch (error) {
-      console.error("Failed to parse user from localStorage", error);
-      localStorage.removeItem('canteen-user');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    if (!auth || !firestore) return;
 
-  const login = (email: string, password: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      setLoading(true);
-      // Mock authentication logic
-      setTimeout(() => {
-        const foundUser = mockUsers.find(u => u.email === email);
-        // In a real app, you'd also check the password hash.
-        // For this demo, we'll use a simple password check.
-        if (foundUser && password === 'password') {
-          setUser(foundUser);
-          localStorage.setItem('canteen-user', JSON.stringify(foundUser));
-          setLoading(false);
-          resolve();
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      setFirebaseUser(fbUser);
+      if (fbUser) {
+        // User is signed in, see docs for a list of available properties
+        // https://firebase.google.com/docs/reference/js/firebase.User
+        const userDocRef = doc(firestore, 'users', fbUser.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists()) {
+          setUser({ id: fbUser.uid, ...userDoc.data() } as User);
         } else {
-          setLoading(false);
-          reject(new Error('Invalid email or password.'));
+          // Handle case where user exists in Auth but not Firestore
+          // This could be a new user, or a data consistency issue
+          // For now, we'll treat them as a basic user without a role
+           const matchedMockUser = mockUsers.find(u => u.email === fbUser.email);
+            if (matchedMockUser) {
+              const userData: Omit<User, 'id'> = {
+                name: matchedMockUser.name,
+                email: matchedMockUser.email,
+                role: matchedMockUser.role,
+              };
+              // This is a temporary solution to get user data.
+              // In a real app, you would have a user creation flow.
+              setUser({ id: fbUser.uid, ...userData });
+            } else {
+               setUser(null);
+            }
         }
-      }, 1000);
+      } else {
+        // User is signed out
+        setUser(null);
+      }
+      setLoading(false);
     });
+
+    return () => unsubscribe();
+  }, [auth, firestore]);
+
+  const login = async (email: string, password: string): Promise<void> => {
+    if (!auth) throw new Error("Firebase Auth not initialized");
+    setLoading(true);
+    try {
+        await signInWithEmailAndPassword(auth, email, password);
+        // onAuthStateChanged will handle setting the user state
+    } finally {
+        setLoading(false);
+    }
   };
 
-  const logout = () => {
+  const logout = async (): Promise<void> => {
+    if (!auth) throw new Error("Firebase Auth not initialized");
+    await signOut(auth);
     setUser(null);
-    localStorage.removeItem('canteen-user');
+    setFirebaseUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, firebaseUser, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
