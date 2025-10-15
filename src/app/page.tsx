@@ -7,7 +7,6 @@ import BiometricScanner from '@/components/biometric-scanner';
 import { useToast } from "@/hooks/use-toast"
 import { useCollection, useFirebase, addDocumentNonBlocking, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import { FirebaseClientProvider } from '@/firebase';
 
 export default function AuthenticationPage() {
   const [isScanning, setIsScanning] = useState(false);
@@ -27,6 +26,11 @@ export default function AuthenticationPage() {
     if (employeesLoading || !employees) {
         toast({ variant: "destructive", title: "System Busy", description: "Employee data is still loading. Please try again shortly." });
         return;
+    }
+
+    if (employees.length === 0) {
+      toast({ variant: "destructive", title: "No Employees Found", description: "Please add employees in the admin panel before scanning." });
+      return;
     }
 
     setIsScanning(true);
@@ -83,7 +87,7 @@ export default function AuthenticationPage() {
   };
 
   return (
-    <FirebaseClientProvider>
+    <>
       <div 
         className="fixed inset-0 -z-10 bg-background/50"
       ></div>
@@ -111,6 +115,6 @@ export default function AuthenticationPage() {
               />
           </div>
       </main>
-    </FirebaseClientProvider>
+    </>
   );
 }
