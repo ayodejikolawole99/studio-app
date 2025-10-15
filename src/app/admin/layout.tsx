@@ -49,7 +49,7 @@ function AdminProtectedLayout({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, router]);
 
-  if (loading || !user) {
+  if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <p>Loading...</p>
@@ -57,6 +57,13 @@ function AdminProtectedLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // If there's no user, the useEffect above will handle the redirect.
+  // Rendering nothing here prevents the admin layout from briefly flashing
+  // before the redirect happens.
+  if (!user) {
+    return null;
+  }
+  
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('');
   }
@@ -74,7 +81,7 @@ function AdminProtectedLayout({ children }: { children: React.ReactNode }) {
 
                     <SidebarMenu className="flex-grow">
                         {navItems
-                          .filter(item => item.roles.includes(user.role))
+                          .filter(item => user.role && item.roles.includes(user.role))
                           .map((item) => (
                             <SidebarMenuItem key={item.href}>
                                 <Link href={item.href}>
