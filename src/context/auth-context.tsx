@@ -1,12 +1,11 @@
 'use client';
 
 import { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-import { Auth, onAuthStateChanged, signInWithEmailAndPassword, signOut, User as FirebaseUser } from 'firebase/auth';
+import { Auth, onAuthStateChanged, signInWithEmailAndPassword, signOut, User as FirebaseUser, createUserWithEmailAndPassword } from 'firebase/auth';
 import type { User } from '@/lib/types';
-import { useFirebase } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { useFirebase, setDocumentNonBlocking } from '@/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-// Mock user roles are now stored in Firestore, but we can keep this for fallback/initial structure idea
 const mockUsers: Omit<User, 'id'>[] = [
   { name: 'Admin User', email: 'admin@example.com', role: 'ADMIN' },
   { name: 'Canteen Operator', email: 'operator@example.com', role: 'OPERATOR' },
@@ -30,21 +29,56 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (!auth || !firestore) return;
+    
+    // Function to create default users if they don't exist
+    const createDefaultUsers = async () => {
+        try {
+            // Try to create admin user
+            const adminCredential = await createUserWithEmailAndPassword(auth, 'admin@example.com', 'password').catch(e => {
+                if (e.code !== 'auth/email-already-in-use') throw e;
+                return null;
+            });
+
+            if (adminCredential) {
+                const userDocRef = doc(firestore, 'users', adminCredential.user.uid);
+                await setDoc(userDocRef, {
+                    name: 'Admin User',
+                    email: 'admin@example.com',
+                    role: 'ADMIN'
+                });
+            }
+
+            // Try to create operator user
+            const operatorCredential = await createUserWithEmailAndPassword(auth, 'operator@example.com', 'password').catch(e => {
+                if (e.code !== 'auth/email-already-in-use') throw e;
+                return null;
+            });
+            
+             if (operatorCredential) {
+                const userDocRef = doc(firestore, 'users', operatorCredential.user.uid);
+                await setDoc(userDocRef, {
+                    name: 'Canteen Operator',
+                    email: 'operator@example.com',
+                    role: 'OPERATOR'
+                });
+            }
+        } catch (error) {
+            console.error("Error creating default users:", error);
+        }
+    };
+
+    createDefaultUsers();
+
 
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
       if (fbUser) {
-        // User is signed in, see docs for a list of available properties
-        // https://firebase.google.com/docs/reference/js/firebase.User
         const userDocRef = doc(firestore, 'users', fbUser.uid);
         const userDoc = await getDoc(userDocRef);
 
         if (userDoc.exists()) {
           setUser({ id: fbUser.uid, ...userDoc.data() } as User);
         } else {
-          // Handle case where user exists in Auth but not Firestore
-          // This could be a new user, or a data consistency issue
-          // For now, we'll treat them as a basic user without a role
            const matchedMockUser = mockUsers.find(u => u.email === fbUser.email);
             if (matchedMockUser) {
               const userData: Omit<User, 'id'> = {
@@ -52,15 +86,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 email: matchedMockUser.email,
                 role: matchedMockUser.role,
               };
-              // This is a temporary solution to get user data.
-              // In a real app, you would have a user creation flow.
               setUser({ id: fbUser.uid, ...userData });
             } else {
                setUser(null);
             }
         }
       } else {
-        // User is signed out
         setUser(null);
       }
       setLoading(false);
@@ -71,13 +102,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, password: string): Promise<void> => {
     if (!auth) throw new Error("Firebase Auth not initialized");
-    setLoading(true);
-    try {
-        await signInWithEmailAndPassword(auth, email, password);
-        // onAuthStateChanged will handle setting the user state
-    } finally {
-        setLoading(false);
-    }
+    await signInWithEmailAndPassword(auth, email, password);
   };
 
   const logout = async (): Promise<void> => {
