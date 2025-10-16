@@ -32,19 +32,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { useCollection, useFirebase, setDocumentNonBlocking, deleteDocumentNonBlocking, useMemoFirebase } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { employees as mockEmployees } from '@/lib/data'; // Using mock data
+import { useToast } from '@/hooks/use-toast';
 
 export default function StaffList() {
-  const { firestore } = useFirebase();
-  const employeesCollection = useMemoFirebase(() =>
-    firestore ? collection(firestore, 'employees') : null
-  , [firestore]);
-  const { data: employees, isLoading } = useCollection<Employee>(employeesCollection);
-
+  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditOpen, setEditOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const { toast } = useToast();
 
   const filteredEmployees = useMemo(() => {
       if (!employees) return [];
@@ -66,20 +62,22 @@ export default function StaffList() {
   };
   
   const handleDelete = (employeeId: string) => {
-    if (!firestore) return;
-    const docRef = doc(firestore, 'employees', employeeId);
-    deleteDocumentNonBlocking(docRef);
+    setEmployees(prev => prev.filter(e => e.id !== employeeId));
+    toast({ title: 'Success', description: 'Employee removed from mock data.'});
   };
 
   const handleSave = (employeeData: Employee, isNew: boolean) => {
-    if (!firestore) return;
-    const docRef = doc(firestore, 'employees', employeeData.id);
-    setDocumentNonBlocking(docRef, employeeData, { merge: !isNew });
+    if (isNew) {
+      if (employees.some(e => e.id === employeeData.id)) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Employee ID must be unique.' });
+        return;
+      }
+      setEmployees(prev => [...prev, employeeData]);
+    } else {
+      setEmployees(prev => prev.map(e => e.id === employeeData.id ? employeeData : e));
+    }
   };
 
-  if (isLoading) {
-    return <p>Loading staff...</p>;
-  }
 
   return (
     <>

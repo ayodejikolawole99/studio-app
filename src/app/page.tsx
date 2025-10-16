@@ -5,31 +5,21 @@ import { useRouter } from 'next/navigation';
 import type { Employee } from '@/lib/types';
 import BiometricScanner from '@/components/biometric-scanner';
 import { useToast } from "@/hooks/use-toast"
-import { useCollection, useFirebase, addDocumentNonBlocking, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { employees as mockEmployees } from '@/lib/data';
+import { useFeedingData } from '@/context/feeding-data-context'; // Assuming this context exists and is provided at a higher level
+import { FeedingDataProvider } from '@/context/feeding-data-context';
 
-export default function AuthenticationPage() {
+function AuthPageContent() {
   const [isScanning, setIsScanning] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authenticatedEmployee, setAuthenticatedEmployee] = useState<Employee | null>(null);
   const router = useRouter();
   const { toast } = useToast();
-  const { firestore } = useFirebase();
-
-  const employeesCollection = useMemoFirebase(() =>
-    firestore ? collection(firestore, 'employees') : null
-  , [firestore]);
-
-  const { data: employees, isLoading: employeesLoading } = useCollection<Employee>(employeesCollection);
+  const { addMockRecord } = useFeedingData();
 
   const handleScan = async () => {
-    if (employeesLoading || !employees) {
-        toast({ variant: "destructive", title: "System Busy", description: "Employee data is still loading. Please try again shortly." });
-        return;
-    }
-
-    if (employees.length === 0) {
-      toast({ variant: "destructive", title: "No Employees Found", description: "Please add employees in the admin panel before scanning." });
+    if (!mockEmployees || mockEmployees.length === 0) {
+      toast({ variant: "destructive", title: "No Employees Found", description: "Please add employees to the mock data file." });
       return;
     }
 
@@ -37,53 +27,36 @@ export default function AuthenticationPage() {
     setIsAuthenticated(false);
     setAuthenticatedEmployee(null);
 
-    // TODO: Integrate with SecuGen Hamster Plus SDK/WebAPI here.
-    // The logic below is for demonstration and should be replaced with
-    // actual biometric scanning and user identification from your database.
-
     // Simulate biometric scan and user identification
-    const employee = employees[Math.floor(Math.random() * employees.length)];
+    const employee = mockEmployees[Math.floor(Math.random() * mockEmployees.length)];
     
     // On successful scan from the SecuGen device:
-    setIsScanning(false);
-    setIsAuthenticated(true);
-    setAuthenticatedEmployee(employee);
-    
-    toast({
-      title: "Authentication Successful",
-      description: `Welcome, ${employee.name}. Generating your ticket...`,
-    });
-
-    const ticketData = {
-      ticketId: `T-${Date.now()}`,
-      employeeName: employee.name,
-      employeeId: employee.id,
-      department: employee.department,
-      timestamp: new Date().toISOString(),
-    };
-    
-    if(firestore) {
-      const feedingRecordsRef = collection(firestore, 'feedingRecords');
-      addDocumentNonBlocking(feedingRecordsRef, {
-          employeeId: employee.id,
-          employeeName: employee.name,
-          department: employee.department,
-          timestamp: new Date(),
+    setTimeout(() => {
+      setIsScanning(false);
+      setIsAuthenticated(true);
+      setAuthenticatedEmployee(employee);
+      
+      toast({
+        title: "Authentication Successful",
+        description: `Welcome, ${employee.name}. Generating your ticket...`,
       });
-    }
 
-    // Redirect to the ticket page with ticket data
-    const params = new URLSearchParams({
-        ticket: JSON.stringify(ticketData),
-    });
-    router.push(`/ticket?${params.toString()}`);
+      const ticketData = {
+        ticketId: `T-${Date.now()}`,
+        employeeName: employee.name,
+        department: employee.department,
+        timestamp: new Date().toISOString(),
+      };
+      
+      // We'll call a function to add a record to our new mock context
+      addMockRecord();
 
-
-    // On a failed scan, you would handle the error state:
-    // setIsScanning(false);
-    // setScanError(true);
-    // toast({ variant: "destructive", title: "Authentication Failed" });
-
+      // Redirect to the ticket page with ticket data
+      const params = new URLSearchParams({
+          ticket: JSON.stringify(ticketData),
+      });
+      router.push(`/ticket?${params.toString()}`);
+    }, 1500); // Simulate scanning delay
   };
 
   return (
@@ -117,4 +90,12 @@ export default function AuthenticationPage() {
       </main>
     </>
   );
+}
+
+export default function AuthenticationPage() {
+  return (
+    <FeedingDataProvider>
+      <AuthPageContent/>
+    </FeedingDataProvider>
+  )
 }
