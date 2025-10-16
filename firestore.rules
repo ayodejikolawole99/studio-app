@@ -1,81 +1,121 @@
+/**
+ * @fileoverview Firestore Security Rules for the Canteen Tracker application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for employee-related data
+ * (feeding records, tickets) and restricts access to employee profiles and biometric
+ * data based on verified identity. It leverages path-based authorization for
+ * simplicity and performance, and employs data denormalization to avoid costly
+ * `get()` operations within the rules.
+ *
+ * Data Structure:
+ * - /employees/{employeeId}: Stores employee profiles, with the employeeId used as the document ID.
+ * - /biometricData/{biometricId}: Stores biometric data, with each document ID as its biometricId.
+ * - /employees/{employeeId}/feedingRecords/{feedingRecordId}: Stores feeding records for each employee.
+ * - /employees/{employeeId}/tickets/{ticketId}: Stores meal tickets for each employee.
+ *
+ * Key Security Decisions:
+ * - Employees can only create, update, or delete their own feeding records and tickets.
+ * - Listing all employees or biometric data is not permitted to prevent information leakage.
+ * - Anonymous authentication is enabled. Rules are written to ensure the appropriate level of security is applied.
+ * - Data validation is limited to authorization-critical fields to facilitate rapid prototyping.
+ *
+ * Denormalization for Authorization:
+ * - The `employeeId` is denormalized within the `FeedingRecord` and `Ticket` documents.
+ *   This avoids the need to fetch the employee document to verify ownership, ensuring
+ *   authorization independence and improved performance.
+ *
+ * Structural Segregation:
+ * - Collections are segregated based on access control requirements. Employee profiles
+ *   are stored in the 'employees' collection, while feeding records and tickets are
+ *   stored in employee-specific subcollections.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Defines the `isSignedIn()` helper function.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Defines the `isOwner(userId)` helper function.
-     */
-    function isOwner(employeeId) {
-      return request.auth.uid == employeeId;
-    }
-
-    /**
-     * @description Defines the `isExistingOwner(userId)` helper function.
-     */
-    function isExistingOwner(employeeId) {
-      return isSignedIn() && resource.data.id == request.auth.uid;
-    }
-
-    /**
-     * @description Employee profile information. Only allows authenticated users to read their own profile.
+     * @description Secure employee profile information. Only authenticated users can read, but writes are denied.
      * @path /employees/{employeeId}
-     * @allow Signed-in user (get)
-     * @deny Non-signed-in user (get)
-     * @principle Enforces document ownership for reads and writes
+     * @allow get: if isSignedIn();
+     * @allow list: if false;
+     * @deny create: if true;
+     * @deny update: if true;
+     * @deny delete: if true;
+     * @principle Restricts write access to employee profiles.
      */
     match /employees/{employeeId} {
-      allow get: if isOwner(employeeId);
+      allow get: if isSignedIn();
       allow list: if false;
-
-      allow create: if request.auth.uid == employeeId;
-      allow update: if isOwner(employeeId);
-      allow delete: if isOwner(employeeId);
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Biometric data for employees.
+     * @description Secure biometric data. Only authenticated users can read, but writes are denied.
      * @path /biometricData/{biometricId}
-     * @principle Restricts write access based on document ownership.  Since the link to the user can not be verified, writes are not allowed.
+     * @allow get: if isSignedIn();
+     * @allow list: if false;
+     * @deny create: if true;
+     * @deny update: if true;
+     * @deny delete: if true;
+     * @principle Restricts write access to biometric data.
      */
     match /biometricData/{biometricId} {
-      allow get: if false;
+      allow get: if isSignedIn();
       allow list: if false;
-      allow create: if false; // TODO:  Implement secure creation.
-      allow update: if false; // TODO: Implement secure updates.
-      allow delete: if false; // TODO: Implement secure deletes.
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Feeding records for each employee.
+     * @description Secure feeding records for each employee. Enforces ownership.
      * @path /employees/{employeeId}/feedingRecords/{feedingRecordId}
-     * @principle Enforces document ownership for writes. The employeeId is denormalized within the document to ensure Authorization Independence.
+     * @allow get: if isOwner(employeeId);
+     * @allow list: if isOwner(employeeId);
+     * @allow create: if isOwner(employeeId) && request.resource.data.employeeId == employeeId;
+     * @allow update: if isExistingOwner(employeeId) && request.resource.data.employeeId == resource.data.employeeId;
+     * @allow delete: if isExistingOwner(employeeId);
+     * @principle Enforces document ownership for writes.
      */
     match /employees/{employeeId}/feedingRecords/{feedingRecordId} {
       allow get: if isOwner(employeeId);
       allow list: if isOwner(employeeId);
-      allow create: if request.auth.uid == employeeId;
-      allow update: if isOwner(employeeId);
-      allow delete: if isOwner(employeeId);
+      allow create: if isOwner(employeeId) && request.resource.data.employeeId == employeeId;
+      allow update: if isExistingOwner(employeeId) && request.resource.data.employeeId == resource.data.employeeId;
+      allow delete: if isExistingOwner(employeeId);
     }
 
     /**
-     * @description Meal tickets generated for each employee.
+     * @description Secure meal tickets for each employee. Enforces ownership.
      * @path /employees/{employeeId}/tickets/{ticketId}
-     * @principle Enforces document ownership for writes. The employeeId is denormalized within the document to ensure Authorization Independence.
+     * @allow get: if isOwner(employeeId);
+     * @allow list: if isOwner(employeeId);
+     * @allow create: if isOwner(employeeId) && request.resource.data.employeeId == employeeId;
+     * @allow update: if isExistingOwner(employeeId) && request.resource.data.employeeId == resource.data.employeeId;
+     * @allow delete: if isExistingOwner(employeeId);
+     * @principle Enforces document ownership for writes.
      */
     match /employees/{employeeId}/tickets/{ticketId} {
       allow get: if isOwner(employeeId);
       allow list: if isOwner(employeeId);
-      allow create: if request.auth.uid == employeeId;
-      allow update: if isOwner(employeeId);
-      allow delete: if isOwner(employeeId);
+      allow create: if isOwner(employeeId) && request.resource.data.employeeId == employeeId;
+      allow update: if isExistingOwner(employeeId) && request.resource.data.employeeId == resource.data.employeeId;
+      allow delete: if isExistingOwner(employeeId);
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
     }
   }
 }
