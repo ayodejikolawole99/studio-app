@@ -12,6 +12,7 @@ import {
   SidebarMenuButton,
   SidebarFooter,
   SidebarTrigger,
+  SidebarInset,
 } from '@/components/ui/sidebar';
 import { Users, Ticket, BarChart3, Settings, LayoutDashboard } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -26,7 +27,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 
 const navItems = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'OPERATOR'] },
@@ -35,32 +35,18 @@ const navItems = [
     { href: '/admin/reports', label: 'Reports', icon: BarChart3, roles: ['ADMIN', 'OPERATOR'] },
 ];
 
-function AdminProtectedLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading, logout } = useAuth();
-  const router = useRouter();
+function AdminLayoutContent({ children }: { children: React.ReactNode }) {
+  const { user, logout } = useAuth();
   const pathname = usePathname();
-
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
-
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <p>Loading...</p>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
   
   const getInitials = (name: string | null) => {
     if (!name) return '';
     return name.split(' ').map(n => n[0]).join('');
+  }
+
+  // If there's no user, we can't render the sidebar, so we just show the children (which should be the login page content if routing is correct)
+  if (!user) {
+    return <>{children}</>;
   }
 
   return (
@@ -138,7 +124,7 @@ function AdminProtectedLayout({ children }: { children: React.ReactNode }) {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
-      <AdminProtectedLayout>{children}</AdminProtectedLayout>
+      <AdminLayoutContent>{children}</AdminLayoutContent>
     </AuthProvider>
   )
 }
