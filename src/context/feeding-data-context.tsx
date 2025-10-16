@@ -1,5 +1,5 @@
 'use client';
-import { createContext, ReactNode, useMemo } from 'react';
+import { createContext, ReactNode, useContext } from 'react';
 import type { FeedingRecord } from '@/lib/types';
 import { useCollection, useFirebase, addDocumentNonBlocking, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
@@ -28,7 +28,10 @@ export const FeedingDataProvider = ({ children }: { children: ReactNode }) => {
     const { data: employees } = useCollection(employeesCollection);
 
     const addMockRecord = () => {
-        if (!firestore || !employees || employees.length === 0) return;
+        if (!firestore || !employees || employees.length === 0) {
+            console.log("Cannot add mock record: required data not loaded.");
+            return;
+        };
 
         const randomEmployee = employees[Math.floor(Math.random() * employees.length)];
         const newRecord = {
@@ -47,4 +50,13 @@ export const FeedingDataProvider = ({ children }: { children: ReactNode }) => {
             {children}
         </FeedingDataContext.Provider>
     );
+};
+
+// Custom hook to use the FeedingDataContext
+export const useFeedingData = () => {
+    const context = useContext(FeedingDataContext);
+    if (context === undefined) {
+        throw new Error('useFeedingData must be used within a FeedingDataProvider');
+    }
+    return context;
 };

@@ -11,7 +11,6 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarFooter,
-  SidebarInset,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { Users, Ticket, BarChart3, Settings, LayoutDashboard } from 'lucide-react';
@@ -59,7 +58,7 @@ function AdminProtectedLayout({ children }: { children: React.ReactNode }) {
     return null;
   }
   
-  const getInitials = (name: string) => {
+  const getInitials = (name: string | null) => {
     if (!name) return '';
     return name.split(' ').map(n => n[0]).join('');
   }

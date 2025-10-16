@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { AuthProvider, useAuth } from '@/context/auth-context';
+import { useAuth } from '@/context/auth-context';
 import Image from 'next/image';
 import { Loader2 } from 'lucide-react';
 
@@ -92,9 +92,6 @@ function LoginPageContent() {
 }
 
 export default function LoginPage() {
-    return (
-        <AuthProvider>
-            <LoginPageContent />
-        </AuthProvider>
-    )
+    // AuthProvider is no longer needed here, it's in the admin layout
+    return <LoginPageContent />;
 }

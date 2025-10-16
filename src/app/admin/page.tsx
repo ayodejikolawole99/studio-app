@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useMemo, useContext } from 'react';
+import { useState, useTransition, useMemo } from 'react';
 import type { AnalysisData } from '@/lib/types';
 import ConsumptionAnalysis from '@/components/consumption-analysis';
 import { analyzeEmployeeConsumptionTrends } from '@/ai/flows/analyze-employee-consumption-trends';
@@ -9,7 +9,7 @@ import FeedingHistory from '@/components/feeding-history';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Ticket, Users, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { FeedingDataContext, FeedingDataProvider } from '@/context/feeding-data-context';
+import { FeedingDataProvider, useFeedingData } from '@/context/feeding-data-context';
 
 const StatCard = ({ title, value, icon, isLoading }: { title: string, value: string | number, icon: React.ReactNode, isLoading?: boolean }) => (
     <Card>
@@ -24,18 +24,10 @@ const StatCard = ({ title, value, icon, isLoading }: { title: string, value: str
 );
 
 function DashboardContent() {
-  const context = useContext(FeedingDataContext);
-  
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [isAnalyzing, startAnalysisTransition] = useTransition();
   const { toast } = useToast();
-
-  if (!context) {
-    // This can happen briefly on first load
-    return <div className="flex h-screen items-center justify-center"><p>Loading Dashboard...</p></div>;
-  }
-  
-  const { feedingRecords, addMockRecord, isLoading } = context;
+  const { feedingRecords, addMockRecord, isLoading } = useFeedingData();
 
   const handleAnalysis = () => {
     if(!feedingRecords || feedingRecords.length === 0){

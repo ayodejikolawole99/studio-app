@@ -1,13 +1,13 @@
 'use client';
-import { useState, useMemo, useContext } from 'react';
-import { FeedingDataContext, FeedingDataProvider } from '@/context/feeding-data-context';
+import { useState, useMemo } from 'react';
+import { FeedingDataProvider, useFeedingData } from '@/context/feeding-data-context';
 import type { FeedingRecord } from '@/lib/types';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
-import { subDays, subWeeks, subMonths, startOfDay, format } from 'date-fns';
+import { subWeeks, subMonths, startOfDay } from 'date-fns';
 import { Ticket, Users, BarChart3, FileDown } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -108,15 +108,8 @@ const StatCard = ({ title, value, icon }: { title: string, value: string | numbe
 
 
 function ReportsContent() {
-  const context = useContext(FeedingDataContext);
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('day');
-  const [activeTab, setActiveTab] = useState<ReportType>('user');
-
-  if (!context) {
-    return <p>Loading reports...</p>;
-  }
-
-  const { feedingRecords } = context;
+  const { feedingRecords } = useFeedingData();
 
   const filteredData = useMemo(() => filterRecordsByTimeFrame(feedingRecords, timeFrame), [feedingRecords, timeFrame]);
   const userReportData = useMemo(() => aggregateByUser(filteredData), [filteredData]);
@@ -218,7 +211,7 @@ function ReportsContent() {
         <StatCard title="Average per User" value={uniqueUsers > 0 ? (totalTickets / uniqueUsers).toFixed(1) : 0} icon={<BarChart3 className="h-4 w-4 text-muted-foreground" />} />
       </div>
 
-      <Tabs defaultValue="user" onValueChange={(v) => setActiveTab(v as ReportType)}>
+      <Tabs defaultValue="user">
         <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="user">Per User</TabsTrigger>
             <TabsTrigger value="department">Per Department</TabsTrigger>
