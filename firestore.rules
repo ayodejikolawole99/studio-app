@@ -1,155 +1,81 @@
-/**
- * @file Overview
- * This ruleset enforces a strict user-ownership model for employee-related data within the Canteen Tracker application.
- *
- * Data Structure:
- * - /employees/{employeeId}: Stores employee profile information.
- * - /biometricData/{biometricId}: Stores biometric data. Access is restricted.
- * - /employees/{employeeId}/feedingRecords/{feedingRecordId}: Stores meal consumption records for each employee.  Employee can only manage their own records.
- * - /employees/{employeeId}/tickets/{ticketId}: Stores meal tickets. Employee can only manage their own tickets.
- *
- * Key Security Decisions:
- * - Listing of all employees or biometric data is disallowed to protect privacy.
- * - All data is owned by the specific employee (identified by employeeId in the path).
- *
- * Denormalization for Authorization:
- * - FeedingRecord and Ticket documents denormalize the employeeId to enable simple ownership checks without needing extra reads.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to employee profile documents.
+     * @description Defines the `isSignedIn()` helper function.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Defines the `isOwner(userId)` helper function.
+     */
+    function isOwner(employeeId) {
+      return request.auth.uid == employeeId;
+    }
+
+    /**
+     * @description Defines the `isExistingOwner(userId)` helper function.
+     */
+    function isExistingOwner(employeeId) {
+      return isSignedIn() && resource.data.id == request.auth.uid;
+    }
+
+    /**
+     * @description Employee profile information. Only allows authenticated users to read their own profile.
      * @path /employees/{employeeId}
-     * @allow (create) User with UID 'employee_abc' can create their own profile with employeeId 'employee_abc'.
-     * @allow (get) User with UID 'employee_abc' can read their own profile with employeeId 'employee_abc'.
-     * @allow (update) User with UID 'employee_abc' can update their own profile with employeeId 'employee_abc'.
-     * @allow (delete) User with UID 'employee_abc' can delete their own profile with employeeId 'employee_abc'.
-     * @deny (create) User with UID 'other_user' cannot create a profile with employeeId 'employee_abc'.
-     * @deny (get) User with UID 'other_user' cannot read the profile with employeeId 'employee_abc'.
-     * @principle Enforces document ownership for employee profiles.
+     * @allow Signed-in user (get)
+     * @deny Non-signed-in user (get)
+     * @principle Enforces document ownership for reads and writes
      */
     match /employees/{employeeId} {
-      // Helper function to check if the authenticated user is the owner of the document.
-      function isOwner(employeeId) {
-        return request.auth.uid == employeeId;
-      }
-      
-      // Helper function to check if the authenticated user is the existing owner of the document.
-      function isExistingOwner(employeeId) {
-        return isOwner(employeeId) && resource != null;
-      }
-
-      // Allow the user to create their own profile if the employeeId matches their UID.
-      allow create: if isOwner(employeeId);
-
-      // Allow the owner to read their own profile.
       allow get: if isOwner(employeeId);
-
-      // Allow the owner to update their own profile if the document exists.
-      allow update: if isExistingOwner(employeeId);
-
-      // Allow the owner to delete their own profile if the document exists.
-      allow delete: if isExistingOwner(employeeId);
-
-      // Do not allow listing of all employees.
       allow list: if false;
+
+      allow create: if request.auth.uid == employeeId;
+      allow update: if isOwner(employeeId);
+      allow delete: if isOwner(employeeId);
     }
 
     /**
-     * @description Controls access to biometric data documents.
+     * @description Biometric data for employees.
      * @path /biometricData/{biometricId}
-     * @allow None.  No one can create, read, update, or delete biometric data through the client.
-     * @deny (create) Any user cannot create a biometric data record.
-     * @deny (get) Any user cannot read a biometric data record.
-     * @principle Restricts access to biometric data for security.
+     * @principle Restricts write access based on document ownership.  Since the link to the user can not be verified, writes are not allowed.
      */
     match /biometricData/{biometricId} {
-      // Nobody can create, read, update, or delete biometric data directly.
-      allow create: if false;
       allow get: if false;
-      allow update: if false;
-      allow delete: if false;
-
-      // Listing is also not allowed.
       allow list: if false;
+      allow create: if false; // TODO:  Implement secure creation.
+      allow update: if false; // TODO: Implement secure updates.
+      allow delete: if false; // TODO: Implement secure deletes.
     }
 
     /**
-     * @description Controls access to feeding records for individual employees.
+     * @description Feeding records for each employee.
      * @path /employees/{employeeId}/feedingRecords/{feedingRecordId}
-     * @allow (create) User with UID 'employee_abc' can create a feeding record under /employees/employee_abc/feedingRecords/.
-     * @allow (get) User with UID 'employee_abc' can read a feeding record under /employees/employee_abc/feedingRecords/.
-     * @allow (update) User with UID 'employee_abc' can update a feeding record under /employees/employee_abc/feedingRecords/.
-     * @allow (delete) User with UID 'employee_abc' can delete a feeding record under /employees/employee_abc/feedingRecords/.
-     * @deny (create) User with UID 'other_user' cannot create a feeding record under /employees/employee_abc/feedingRecords/.
-     * @deny (get) User with UID 'other_user' cannot read a feeding record under /employees/employee_abc/feedingRecords/.
-     * @principle Enforces document ownership for feeding records within the employee's scope.
+     * @principle Enforces document ownership for writes. The employeeId is denormalized within the document to ensure Authorization Independence.
      */
     match /employees/{employeeId}/feedingRecords/{feedingRecordId} {
-      // Helper function to check if the authenticated user is the owner (employeeId) of the feeding record.
-      function isOwner(employeeId) {
-        return request.auth.uid == employeeId;
-      }
-
-      // Helper function to check if the authenticated user is the existing owner (employeeId) of the feeding record.
-      function isExistingOwner(employeeId) {
-        return isOwner(employeeId) && resource != null;
-      }
-
-      // Allow creation if the employeeId matches the authenticated user's UID.  Also, enforce that the employeeId field in the data matches the path.
-      allow create: if isOwner(employeeId) && request.resource.data.employeeId == employeeId;
-
-      // Allow reading if the employeeId matches the authenticated user's UID.
       allow get: if isOwner(employeeId);
-
-      // Allow updating if the employeeId matches the authenticated user's UID and the document exists.  Also, enforce immutability of the employeeId.
-      allow update: if isExistingOwner(employeeId) && request.resource.data.employeeId == resource.data.employeeId;
-
-      // Allow deleting if the employeeId matches the authenticated user's UID and the document exists.
-      allow delete: if isExistingOwner(employeeId);
-
-      // Allow listing if the employeeId matches the authenticated user's UID.
       allow list: if isOwner(employeeId);
+      allow create: if request.auth.uid == employeeId;
+      allow update: if isOwner(employeeId);
+      allow delete: if isOwner(employeeId);
     }
 
     /**
-     * @description Controls access to meal tickets for individual employees.
+     * @description Meal tickets generated for each employee.
      * @path /employees/{employeeId}/tickets/{ticketId}
-     * @allow (create) User with UID 'employee_abc' can create a ticket under /employees/employee_abc/tickets/.
-     * @allow (get) User with UID 'employee_abc' can read a ticket under /employees/employee_abc/tickets/.
-     * @allow (update) User with UID 'employee_abc' can update a ticket under /employees/employee_abc/tickets/.
-     * @allow (delete) User with UID 'employee_abc' can delete a ticket under /employees/employee_abc/tickets/.
-     * @deny (create) User with UID 'other_user' cannot create a ticket under /employees/employee_abc/tickets/.
-     * @deny (get) User with UID 'other_user' cannot read a ticket under /employees/employee_abc/tickets/.
-     * @principle Enforces document ownership for tickets within the employee's scope.
+     * @principle Enforces document ownership for writes. The employeeId is denormalized within the document to ensure Authorization Independence.
      */
     match /employees/{employeeId}/tickets/{ticketId} {
-      // Helper function to check if the authenticated user is the owner (employeeId) of the ticket.
-      function isOwner(employeeId) {
-        return request.auth.uid == employeeId;
-      }
-
-      // Helper function to check if the authenticated user is the existing owner (employeeId) of the ticket.
-      function isExistingOwner(employeeId) {
-        return isOwner(employeeId) && resource != null;
-      }
-
-      // Allow creation if the employeeId matches the authenticated user's UID.  Also, enforce that the employeeId field in the data matches the path.
-      allow create: if isOwner(employeeId) && request.resource.data.employeeId == employeeId;
-
-      // Allow reading if the employeeId matches the authenticated user's UID.
       allow get: if isOwner(employeeId);
-
-      // Allow updating if the employeeId matches the authenticated user's UID and the document exists.  Also, enforce immutability of the employeeId.
-      allow update: if isExistingOwner(employeeId) && request.resource.data.employeeId == resource.data.employeeId;
-
-      // Allow deleting if the employeeId matches the authenticated user's UID and the document exists.
-      allow delete: if isExistingOwner(employeeId);
-
-      // Allow listing if the employeeId matches the authenticated user's UID.
       allow list: if isOwner(employeeId);
+      allow create: if request.auth.uid == employeeId;
+      allow update: if isOwner(employeeId);
+      allow delete: if isOwner(employeeId);
     }
   }
 }
