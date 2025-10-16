@@ -25,7 +25,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { AuthProvider, useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
 
 const navItems = [
@@ -36,17 +35,20 @@ const navItems = [
 ];
 
 function AdminLayoutContent({ children }: { children: React.ReactNode }) {
-  const { user, logout } = useAuth();
+  const router = useRouter();
   const pathname = usePathname();
+
+  // Mock user to bypass authentication
+  const user = {
+    id: 'mock-admin-id',
+    name: 'Admin User',
+    email: 'admin@example.com',
+    role: 'ADMIN' as 'ADMIN' | 'OPERATOR',
+  };
   
   const getInitials = (name: string | null) => {
     if (!name) return '';
     return name.split(' ').map(n => n[0]).join('');
-  }
-
-  // If there's no user, we can't render the sidebar, so we just show the children (which should be the login page content if routing is correct)
-  if (!user) {
-    return <>{children}</>;
   }
 
   return (
@@ -96,7 +98,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                           <DropdownMenuItem>Profile</DropdownMenuItem>
                           <DropdownMenuItem>Settings</DropdownMenuItem>
                           <DropdownMenuSeparator />
-                           <DropdownMenuItem onClick={() => logout()}>
+                           <DropdownMenuItem onClick={() => router.push('/login')}>
                             Log out
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -123,8 +125,6 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AuthProvider>
       <AdminLayoutContent>{children}</AdminLayoutContent>
-    </AuthProvider>
   )
 }

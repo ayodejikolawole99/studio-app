@@ -1,24 +1,8 @@
 
 'use client';
 import StaffList from '@/components/staff-list';
-import { useAuth } from '@/context/auth-context';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 
 export default function StaffPage() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!loading && user?.role !== 'ADMIN') {
-      router.push('/admin');
-    }
-  }, [user, loading, router]);
-
-  if (loading || user?.role !== 'ADMIN') {
-    return <p>Redirecting...</p>;
-  }
-
   return (
     <>
       <header className="mb-8">
