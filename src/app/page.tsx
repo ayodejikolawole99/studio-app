@@ -7,8 +7,7 @@ import BiometricScanner from '@/components/biometric-scanner';
 import { useToast } from "@/hooks/use-toast"
 import { useFeedingData } from '@/context/feeding-data-context';
 import { FeedingDataProvider } from '@/context/feeding-data-context';
-import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, updateDoc } from 'firebase/firestore';
+import { employees as mockEmployees } from '@/lib/data';
 
 
 function AuthPageContent() {
@@ -18,12 +17,9 @@ function AuthPageContent() {
   const router = useRouter();
   const { toast } = useToast();
   const { addMockRecord } = useFeedingData();
-  const { firestore } = useFirebase();
+  const [employees, setEmployees] = useState(mockEmployees);
+  const isLoading = false;
 
-  const employeesCollection = useMemoFirebase(() => 
-    firestore ? collection(firestore, 'employees') : null,
-  [firestore]);
-  const { data: employees, isLoading } = useCollection<Employee>(employeesCollection);
 
   const handleScan = async () => {
     if (isLoading || !employees || employees.length === 0) {
@@ -51,7 +47,6 @@ function AuthPageContent() {
 
     // On successful scan from the SecuGen device:
     setTimeout(async () => {
-      if (!firestore) return;
       
       setIsScanning(false);
       setIsAuthenticated(true);
@@ -62,14 +57,10 @@ function AuthPageContent() {
         description: `Welcome, ${employee.name}. Generating your ticket...`,
       });
 
-      // We'll call a function to add a record to our new mock context
       addMockRecord();
 
-      // Decrement ticket balance in Firestore
-      const employeeRef = doc(firestore, 'employees', employee.id);
-      await updateDoc(employeeRef, {
-        ticketBalance: Math.max(0, employee.ticketBalance - 1)
-      });
+      // Decrement ticket balance locally
+      setEmployees(prev => prev.map(e => e.id === employee.id ? { ...e, ticketBalance: Math.max(0, e.ticketBalance - 1) } : e));
 
 
       const ticketData = {

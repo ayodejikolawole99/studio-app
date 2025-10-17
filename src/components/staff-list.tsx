@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -34,9 +34,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
-import { useCollection, useFirebase, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
-
+import { employees as mockEmployees } from '@/lib/data';
 
 export default function StaffList() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -44,13 +42,8 @@ export default function StaffList() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { firestore } = useFirebase();
-
-  const employeesCollection = useMemoFirebase(() => 
-    firestore ? collection(firestore, 'employees') : null, 
-  [firestore]);
-
-  const { data: employees, isLoading } = useCollection<Employee>(employeesCollection);
+  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
+  const [isLoading, setIsLoading] = useState(false);
 
   const filteredEmployees = useMemo(() => {
       if (!employees) return [];
@@ -72,25 +65,19 @@ export default function StaffList() {
   };
   
   const handleDelete = (employeeId: string) => {
-    if (!firestore) return;
-    const employeeRef = doc(firestore, 'employees', employeeId);
-    deleteDocumentNonBlocking(employeeRef);
-    toast({ title: 'Success', description: 'Employee removed from Firestore.'});
+    setEmployees(prev => prev.filter(emp => emp.id !== employeeId));
+    toast({ title: 'Success', description: 'Employee removed from local list.'});
   };
 
   const handleSave = (employeeData: Employee, isNew: boolean) => {
-    if (!firestore) return;
-    
     if (isNew) {
       if (employees && employees.some(e => e.id === employeeData.id)) {
         toast({ variant: 'destructive', title: 'Error', description: 'Employee ID must be unique.' });
         return;
       }
-      const employeeRef = doc(firestore, 'employees', employeeData.id);
-      setDocumentNonBlocking(employeeRef, employeeData, { merge: false });
+      setEmployees(prev => [employeeData, ...prev]);
     } else {
-      const employeeRef = doc(firestore, 'employees', employeeData.id);
-      setDocumentNonBlocking(employeeRef, employeeData, { merge: true });
+      setEmployees(prev => prev.map(emp => emp.id === employeeData.id ? employeeData : emp));
     }
   };
 
@@ -100,7 +87,7 @@ export default function StaffList() {
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !firestore) return;
+    if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -111,11 +98,11 @@ export default function StaffList() {
         const worksheet = workbook.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as string[][];
 
-        // Skip header row if it exists
         const dataRows = json.length > 0 && json[0].join(',').toLowerCase().includes('employee') ? json.slice(1) : json;
 
         const existingIds = new Set(employees?.map(emp => emp.id) || []);
-        let newEmployeeCount = 0;
+        let newEmployees: Employee[] = [];
+        let skippedCount = 0;
         
         for (const row of dataRows) {
             if (row.length < 3 || !row[0] || !row[1] || !row[2]) continue;
@@ -124,6 +111,7 @@ export default function StaffList() {
             const trimmedId = id.trim();
             if (existingIds.has(trimmedId)) {
                 console.warn(`Skipping duplicate employee ID: ${trimmedId}`);
+                skippedCount++;
                 continue;
             }
             
@@ -133,17 +121,15 @@ export default function StaffList() {
                 department: department.trim(),
                 ticketBalance: 0,
             };
-
-            const employeeRef = doc(firestore, 'employees', newEmployee.id);
-            setDocumentNonBlocking(employeeRef, newEmployee, { merge: false });
+            newEmployees.push(newEmployee);
             existingIds.add(trimmedId);
-            newEmployeeCount++;
         }
 
-        if (newEmployeeCount > 0) {
+        if (newEmployees.length > 0) {
+            setEmployees(prev => [...prev, ...newEmployees]);
             toast({
                 title: 'Upload Successful',
-                description: `${newEmployeeCount} new employees are being added.`,
+                description: `${newEmployees.length} new employees added. ${skippedCount > 0 ? `${skippedCount} duplicates skipped.` : ''}`,
             });
         } else {
             toast({
@@ -161,7 +147,6 @@ export default function StaffList() {
           description: 'Could not parse the CSV file. Please check the format.',
         });
       } finally {
-        // Reset file input to allow re-uploading the same file
         if(event.target) event.target.value = '';
       }
     };
@@ -180,12 +165,12 @@ export default function StaffList() {
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileChange}
-                accept=".csv"
+                accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
                 className="hidden"
               />
               <Button onClick={handleUploadClick} variant="outline">
                 <Upload className="mr-2" />
-                Upload CSV
+                Upload File
               </Button>
               <Button onClick={handleAdd}>
                 <PlusCircle className="mr-2" />
