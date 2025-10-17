@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import type { Employee } from '@/lib/types';
 import BiometricScanner from '@/components/biometric-scanner';
 import { useToast } from "@/hooks/use-toast"
-import { employees as mockEmployees } from '@/lib/data';
-import { useFeedingData } from '@/context/feeding-data-context'; // Assuming this context exists and is provided at a higher level
+import { useFeedingData } from '@/context/feeding-data-context';
 import { FeedingDataProvider } from '@/context/feeding-data-context';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, doc, updateDoc } from 'firebase/firestore';
+
 
 function AuthPageContent() {
   const [isScanning, setIsScanning] = useState(false);
@@ -16,10 +18,16 @@ function AuthPageContent() {
   const router = useRouter();
   const { toast } = useToast();
   const { addMockRecord } = useFeedingData();
+  const { firestore } = useFirebase();
+
+  const employeesCollection = useMemoFirebase(() => 
+    firestore ? collection(firestore, 'employees') : null,
+  [firestore]);
+  const { data: employees, isLoading } = useCollection<Employee>(employeesCollection);
 
   const handleScan = async () => {
-    if (!mockEmployees || mockEmployees.length === 0) {
-      toast({ variant: "destructive", title: "No Employees Found", description: "Please add employees to the mock data file." });
+    if (isLoading || !employees || employees.length === 0) {
+      toast({ variant: "destructive", title: "System Not Ready", description: "Employee data is not loaded yet. Please wait." });
       return;
     }
 
@@ -28,10 +36,23 @@ function AuthPageContent() {
     setAuthenticatedEmployee(null);
 
     // Simulate biometric scan and user identification
-    const employee = mockEmployees[Math.floor(Math.random() * mockEmployees.length)];
+    const employee = employees[Math.floor(Math.random() * employees.length)];
     
+    if (employee.ticketBalance <= 0) {
+        toast({
+            variant: "destructive",
+            title: "Authentication Failed",
+            description: `${employee.name} has no available tickets.`,
+        });
+        setIsScanning(false);
+        return;
+    }
+
+
     // On successful scan from the SecuGen device:
-    setTimeout(() => {
+    setTimeout(async () => {
+      if (!firestore) return;
+      
       setIsScanning(false);
       setIsAuthenticated(true);
       setAuthenticatedEmployee(employee);
@@ -41,15 +62,22 @@ function AuthPageContent() {
         description: `Welcome, ${employee.name}. Generating your ticket...`,
       });
 
+      // We'll call a function to add a record to our new mock context
+      addMockRecord();
+
+      // Decrement ticket balance in Firestore
+      const employeeRef = doc(firestore, 'employees', employee.id);
+      await updateDoc(employeeRef, {
+        ticketBalance: Math.max(0, employee.ticketBalance - 1)
+      });
+
+
       const ticketData = {
         ticketId: `T-${Date.now()}`,
         employeeName: employee.name,
         department: employee.department,
         timestamp: new Date().toISOString(),
       };
-      
-      // We'll call a function to add a record to our new mock context
-      addMockRecord();
 
       // Redirect to the ticket page with ticket data
       const params = new URLSearchParams({

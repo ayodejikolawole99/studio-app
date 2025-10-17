@@ -32,19 +32,25 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { employees as mockEmployees } from '@/lib/data'; // Using mock data
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
+import { useCollection, useFirebase, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
 
 
 export default function StaffList() {
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditOpen, setEditOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { firestore } = useFirebase();
 
+  const employeesCollection = useMemoFirebase(() => 
+    firestore ? collection(firestore, 'employees') : null, 
+  [firestore]);
+
+  const { data: employees, isLoading } = useCollection<Employee>(employeesCollection);
 
   const filteredEmployees = useMemo(() => {
       if (!employees) return [];
@@ -66,19 +72,25 @@ export default function StaffList() {
   };
   
   const handleDelete = (employeeId: string) => {
-    setEmployees(prev => prev.filter(e => e.id !== employeeId));
-    toast({ title: 'Success', description: 'Employee removed from mock data.'});
+    if (!firestore) return;
+    const employeeRef = doc(firestore, 'employees', employeeId);
+    deleteDocumentNonBlocking(employeeRef);
+    toast({ title: 'Success', description: 'Employee removed from Firestore.'});
   };
 
   const handleSave = (employeeData: Employee, isNew: boolean) => {
+    if (!firestore) return;
+    
     if (isNew) {
-      if (employees.some(e => e.id === employeeData.id)) {
+      if (employees && employees.some(e => e.id === employeeData.id)) {
         toast({ variant: 'destructive', title: 'Error', description: 'Employee ID must be unique.' });
         return;
       }
-      setEmployees(prev => [...prev, employeeData]);
+      const employeeRef = doc(firestore, 'employees', employeeData.id);
+      setDocumentNonBlocking(employeeRef, employeeData, { merge: false });
     } else {
-      setEmployees(prev => prev.map(e => e.id === employeeData.id ? employeeData : e));
+      const employeeRef = doc(firestore, 'employees', employeeData.id);
+      setDocumentNonBlocking(employeeRef, employeeData, { merge: true });
     }
   };
 
@@ -88,7 +100,7 @@ export default function StaffList() {
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !firestore) return;
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -102,32 +114,36 @@ export default function StaffList() {
         // Skip header row if it exists
         const dataRows = json.length > 0 && json[0].join(',').toLowerCase().includes('employee') ? json.slice(1) : json;
 
-        const newEmployees: Employee[] = [];
-        const existingIds = new Set(employees.map(emp => emp.id));
+        const existingIds = new Set(employees?.map(emp => emp.id) || []);
+        let newEmployeeCount = 0;
         
         for (const row of dataRows) {
             if (row.length < 3 || !row[0] || !row[1] || !row[2]) continue;
 
             const [name, id, department] = row;
-            if (existingIds.has(id)) {
-                console.warn(`Skipping duplicate employee ID: ${id}`);
+            const trimmedId = id.trim();
+            if (existingIds.has(trimmedId)) {
+                console.warn(`Skipping duplicate employee ID: ${trimmedId}`);
                 continue;
             }
-
-            newEmployees.push({
-                id: id.trim(),
+            
+            const newEmployee: Employee = {
+                id: trimmedId,
                 name: name.trim(),
                 department: department.trim(),
                 ticketBalance: 0,
-            });
-            existingIds.add(id);
+            };
+
+            const employeeRef = doc(firestore, 'employees', newEmployee.id);
+            setDocumentNonBlocking(employeeRef, newEmployee, { merge: false });
+            existingIds.add(trimmedId);
+            newEmployeeCount++;
         }
 
-        if (newEmployees.length > 0) {
-            setEmployees(prev => [...prev, ...newEmployees]);
+        if (newEmployeeCount > 0) {
             toast({
                 title: 'Upload Successful',
-                description: `${newEmployees.length} new employees have been added.`,
+                description: `${newEmployeeCount} new employees are being added.`,
             });
         } else {
             toast({
@@ -199,7 +215,14 @@ export default function StaffList() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredEmployees.map((employee) => (
+              {isLoading && (
+                 <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                      Loading staff data...
+                    </TableCell>
+                  </TableRow>
+              )}
+              {!isLoading && filteredEmployees && filteredEmployees.map((employee) => (
                 <TableRow key={employee.id}>
                   <TableCell>
                     <span className="font-medium">{employee.name}</span>
@@ -246,7 +269,7 @@ export default function StaffList() {
                   </TableCell>
                 </TableRow>
               ))}
-               {filteredEmployees.length === 0 && (
+               {!isLoading && (!filteredEmployees || filteredEmployees.length === 0) && (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
                       No staff members found.

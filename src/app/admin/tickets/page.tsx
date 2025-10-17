@@ -4,12 +4,19 @@ import { useState, useMemo } from 'react';
 import type { Employee } from '@/lib/types';
 import IndividualTicketControl from '@/components/individual-ticket-control';
 import BulkTicketControl from '@/components/bulk-ticket-control';
-import { employees as mockEmployees } from '@/lib/data'; // Using mock data
 import { useToast } from '@/hooks/use-toast';
+import { useCollection, useFirebase, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
 
 export default function TicketsPage() {
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
+  const { firestore } = useFirebase();
   const { toast } = useToast();
+  
+  const employeesCollection = useMemoFirebase(() => 
+    firestore ? collection(firestore, 'employees') : null, 
+  [firestore]);
+  
+  const { data: employees, isLoading } = useCollection<Employee>(employeesCollection);
 
   const departments = useMemo(() => {
     if (!employees) return [];
@@ -17,32 +24,37 @@ export default function TicketsPage() {
   }, [employees]);
 
   const handleIndividualUpdate = (employeeId: string, amount: number) => {
-    setEmployees(prev => prev.map(emp => {
-      if (emp.id === employeeId) {
-        return {
-          ...emp,
-          ticketBalance: Math.max(0, (emp.ticketBalance || 0) + amount)
-        }
-      }
-      return emp;
-    }));
+    if (!firestore || !employees) return;
+    
+    const employee = employees.find(e => e.id === employeeId);
+    if (!employee) return;
+
+    const newBalance = Math.max(0, (employee.ticketBalance || 0) + amount);
+    
+    const employeeRef = doc(firestore, 'employees', employeeId);
+    updateDocumentNonBlocking(employeeRef, { ticketBalance: newBalance });
   };
   
   const handleBulkUpdate = (department: string, amount: number) => {
-    setEmployees(prev => prev.map(emp => {
+    if (!firestore || !employees) return;
+
+    employees.forEach(emp => {
       if (department === 'all' || emp.department === department) {
-        return {
-          ...emp,
-          ticketBalance: Math.max(0, (emp.ticketBalance || 0) + amount)
-        };
+        const newBalance = Math.max(0, (emp.ticketBalance || 0) + amount);
+        const employeeRef = doc(firestore, 'employees', emp.id);
+        updateDocumentNonBlocking(employeeRef, { ticketBalance: newBalance });
       }
-      return emp;
-    }));
+    });
+
     toast({
       title: 'Success',
-      description: 'Ticket balances updated in mock data.'
+      description: 'Ticket balances are being updated in Firestore.'
     });
   };
+
+  if (isLoading) {
+    return <div>Loading employee data...</div>
+  }
 
   return (
     <>
