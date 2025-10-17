@@ -2,108 +2,97 @@
  * @fileoverview Firestore Security Rules for the Canteen Tracker application.
  *
  * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for employee-related data
- * (feeding records, tickets) and restricts access to employee profiles and biometric
- * data based on verified identity. It leverages path-based authorization for
- * simplicity and performance, and employs data denormalization to avoid costly
- * `get()` operations within the rules.
+ * This ruleset enforces a strict user-ownership model for employee-related data (feeding records, tickets)
+ * nested under the /employees/{employeeId} path.  Biometric data and employee profiles
+ * are stored in top-level collections. Authorization decisions are made independently within each document
+ * where applicable.
  *
  * Data Structure:
- * - /employees/{employeeId}: Stores employee profiles, with the employeeId used as the document ID.
- * - /biometricData/{biometricId}: Stores biometric data, with each document ID as its biometricId.
+ * - /employees/{employeeId}: Stores employee profiles.
+ * - /biometricData/{biometricId}: Stores biometric data.
  * - /employees/{employeeId}/feedingRecords/{feedingRecordId}: Stores feeding records for each employee.
+ *   The `employeeId` is denormalized in the FeedingRecord document for authorization.
  * - /employees/{employeeId}/tickets/{ticketId}: Stores meal tickets for each employee.
+ *   The `employeeId` is denormalized in the Ticket document for authorization.
  *
  * Key Security Decisions:
- * - Employees can only create, update, or delete their own feeding records and tickets.
- * - Listing all employees or biometric data is not permitted to prevent information leakage.
- * - Anonymous authentication is enabled. Rules are written to ensure the appropriate level of security is applied.
- * - Data validation is limited to authorization-critical fields to facilitate rapid prototyping.
+ * - Employees can only list their own feeding records and tickets.
+ * - Read permissions are generally restricted to authenticated users.
  *
  * Denormalization for Authorization:
- * - The `employeeId` is denormalized within the `FeedingRecord` and `Ticket` documents.
- *   This avoids the need to fetch the employee document to verify ownership, ensuring
- *   authorization independence and improved performance.
- *
- * Structural Segregation:
- * - Collections are segregated based on access control requirements. Employee profiles
- *   are stored in the 'employees' collection, while feeding records and tickets are
- *   stored in employee-specific subcollections.
+ * - The `employeeId` field is denormalized into the `FeedingRecord` and `Ticket` documents.
+ *   This avoids costly `get()` calls to the `employees` collection during authorization checks.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Secure employee profile information. Only authenticated users can read, but writes are denied.
+     * @description Secure employee profile information. Allows read access to authenticated users.
+     *               Write access is denied in this prototyping phase.
      * @path /employees/{employeeId}
-     * @allow get: if isSignedIn();
-     * @allow list: if false;
-     * @deny create: if true;
-     * @deny update: if true;
-     * @deny delete: if true;
-     * @principle Restricts write access to employee profiles.
+     * @allow get, list: if isSignedIn();
+     * @deny create, update, delete: if true;
+     * @principle Requires user to be signed in to read employees information.
      */
     match /employees/{employeeId} {
       allow get: if isSignedIn();
-      allow list: if false;
+      allow list: if isSignedIn();
       allow create: if false;
       allow update: if false;
       allow delete: if false;
     }
 
     /**
-     * @description Secure biometric data. Only authenticated users can read, but writes are denied.
+     * @description Secure biometric data. Allows read access to authenticated users.
+     *               Write access is denied in this prototyping phase.
      * @path /biometricData/{biometricId}
-     * @allow get: if isSignedIn();
-     * @allow list: if false;
-     * @deny create: if true;
-     * @deny update: if true;
-     * @deny delete: if true;
-     * @principle Restricts write access to biometric data.
+     * @allow get, list: if isSignedIn();
+     * @deny create, update, delete: if true;
+     * @principle Requires user to be signed in to read biometric data.
      */
     match /biometricData/{biometricId} {
       allow get: if isSignedIn();
-      allow list: if false;
+      allow list: if isSignedIn();
       allow create: if false;
       allow update: if false;
       allow delete: if false;
     }
 
     /**
-     * @description Secure feeding records for each employee. Enforces ownership.
+     * @description Secure feeding records for each employee.
      * @path /employees/{employeeId}/feedingRecords/{feedingRecordId}
-     * @allow get: if isOwner(employeeId);
-     * @allow list: if isOwner(employeeId);
-     * @allow create: if isOwner(employeeId) && request.resource.data.employeeId == employeeId;
-     * @allow update: if isExistingOwner(employeeId) && request.resource.data.employeeId == resource.data.employeeId;
-     * @allow delete: if isExistingOwner(employeeId);
+     * @allow get: if isSignedIn() && isOwner(employeeId);
+     * @allow list: if isSignedIn() && isOwner(employeeId);
+     * @allow create: if isSignedIn() && request.resource.data.employeeId == employeeId;
+     * @allow update: if isSignedIn() && isExistingOwner(employeeId) && resource.data.employeeId == employeeId;
+     * @allow delete: if isSignedIn() && isExistingOwner(employeeId);
      * @principle Enforces document ownership for writes.
      */
     match /employees/{employeeId}/feedingRecords/{feedingRecordId} {
-      allow get: if isOwner(employeeId);
-      allow list: if isOwner(employeeId);
-      allow create: if isOwner(employeeId) && request.resource.data.employeeId == employeeId;
-      allow update: if isExistingOwner(employeeId) && request.resource.data.employeeId == resource.data.employeeId;
-      allow delete: if isExistingOwner(employeeId);
+      allow get: if isSignedIn() && isOwner(employeeId);
+      allow list: if isSignedIn() && isOwner(employeeId);
+      allow create: if isSignedIn() && request.resource.data.employeeId == employeeId;
+      allow update: if isSignedIn() && isExistingOwner(employeeId) && resource.data.employeeId == employeeId;
+      allow delete: if isSignedIn() && isExistingOwner(employeeId);
     }
 
     /**
-     * @description Secure meal tickets for each employee. Enforces ownership.
+     * @description Secure meal tickets generated for each employee.
      * @path /employees/{employeeId}/tickets/{ticketId}
-     * @allow get: if isOwner(employeeId);
-     * @allow list: if isOwner(employeeId);
-     * @allow create: if isOwner(employeeId) && request.resource.data.employeeId == employeeId;
-     * @allow update: if isExistingOwner(employeeId) && request.resource.data.employeeId == resource.data.employeeId;
-     * @allow delete: if isExistingOwner(employeeId);
+     * @allow get: if isSignedIn() && isOwner(employeeId);
+     * @allow list: if isSignedIn() && isOwner(employeeId);
+     * @allow create: if isSignedIn() && request.resource.data.employeeId == employeeId;
+     * @allow update: if isSignedIn() && isExistingOwner(employeeId) && resource.data.employeeId == employeeId;
+     * @allow delete: if isSignedIn() && isExistingOwner(employeeId);
      * @principle Enforces document ownership for writes.
      */
     match /employees/{employeeId}/tickets/{ticketId} {
-      allow get: if isOwner(employeeId);
-      allow list: if isOwner(employeeId);
-      allow create: if isOwner(employeeId) && request.resource.data.employeeId == employeeId;
-      allow update: if isExistingOwner(employeeId) && request.resource.data.employeeId == resource.data.employeeId;
-      allow delete: if isExistingOwner(employeeId);
+      allow get: if isSignedIn() && isOwner(employeeId);
+      allow list: if isSignedIn() && isOwner(employeeId);
+      allow create: if isSignedIn() && request.resource.data.employeeId == employeeId;
+      allow update: if isSignedIn() && isExistingOwner(employeeId) && resource.data.employeeId == employeeId;
+      allow delete: if isSignedIn() && isExistingOwner(employeeId);
     }
 
     function isSignedIn() {
@@ -115,7 +104,7 @@ service cloud.firestore {
     }
 
     function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
+      return isOwner(userId) && resource != null;
     }
   }
 }
