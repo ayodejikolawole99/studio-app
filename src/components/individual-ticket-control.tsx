@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Employee } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
@@ -17,14 +17,20 @@ interface IndividualTicketControlProps {
 }
 
 export default function IndividualTicketControl({ employees, onUpdate }: IndividualTicketControlProps) {
-    const [selectedEmployee, setSelectedEmployee] = useState<string>('');
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
     const [amount, setAmount] = useState<number>(1);
     const { toast } = useToast();
 
-    const selectedEmployeeData = employees.find(emp => emp.id === selectedEmployee);
+    const selectedEmployeeData = employees.find(emp => emp.id === selectedEmployeeId);
+    
+    // This effect ensures that if the employee data changes (e.g. balance update), the UI reflects it.
+    useEffect(() => {
+        // This is primarily to force a re-render if the parent `employees` array changes.
+        // No direct action needed, as the `selectedEmployeeData` is already derived from the latest prop.
+    }, [employees]);
 
     const handleUpdate = (operation: 'add' | 'subtract') => {
-        if (!selectedEmployee) {
+        if (!selectedEmployeeId) {
             toast({ variant: 'destructive', title: 'Error', description: 'Please select an employee.' });
             return;
         }
@@ -34,7 +40,7 @@ export default function IndividualTicketControl({ employees, onUpdate }: Individ
         }
 
         const updateAmount = operation === 'add' ? amount : -amount;
-        onUpdate(selectedEmployee, updateAmount);
+        onUpdate(selectedEmployeeId, updateAmount);
 
         toast({
             title: 'Success',
@@ -54,9 +60,16 @@ export default function IndividualTicketControl({ employees, onUpdate }: Individ
             <CardContent className="space-y-4">
                 <div className="space-y-2">
                     <Label htmlFor="employee-select">Employee</Label>
-                    <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+                    <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
                         <SelectTrigger id="employee-select">
-                            <SelectValue placeholder="Select an employee..." />
+                           <SelectValue placeholder="Select an employee...">
+                                {selectedEmployeeData ? (
+                                    <div className="flex justify-between w-full">
+                                        <span>{selectedEmployeeData.name}</span>
+                                        <span className="text-muted-foreground mr-2">{`Bal: ${selectedEmployeeData.ticketBalance}`}</span>
+                                    </div>
+                                ) : "Select an employee..."}
+                            </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                             {employees.map(emp => (
@@ -83,11 +96,11 @@ export default function IndividualTicketControl({ employees, onUpdate }: Individ
                 </div>
             </CardContent>
             <CardFooter className="flex gap-2">
-                <Button onClick={() => handleUpdate('add')} className="w-full">
+                <Button onClick={() => handleUpdate('add')} className="w-full" disabled={!selectedEmployeeId}>
                     <Plus className="mr-2"/>
                     Add Tickets
                 </Button>
-                <Button onClick={() => handleUpdate('subtract')} variant="destructive" className="w-full">
+                <Button onClick={() => handleUpdate('subtract')} variant="destructive" className="w-full" disabled={!selectedEmployeeId}>
                     <Minus className="mr-2"/>
                     Subtract Tickets
                 </Button>
