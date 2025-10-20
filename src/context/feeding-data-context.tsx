@@ -1,8 +1,10 @@
 'use client';
-import { createContext, ReactNode, useContext, useState } from 'react';
+import { createContext, ReactNode, useContext } from 'react';
 import type { FeedingRecord, Employee } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { employees as mockEmployees } from '@/lib/data';
+import { useFirebase, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
+
 
 interface FeedingDataContextType {
     feedingRecords: FeedingRecord[];
@@ -14,17 +16,31 @@ export const FeedingDataContext = createContext<FeedingDataContextType | undefin
 
 export const FeedingDataProvider = ({ children }: { children: ReactNode }) => {
     const { toast } = useToast();
-    const [feedingRecords, setFeedingRecords] = useState<FeedingRecord[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
+    const { firestore } = useFirebase();
+
+    // Note: This assumes a root-level 'feedingRecords' collection.
+    // If it's a subcollection, this query needs the full path.
+    // Given the current usage, this seems fine for the dashboard's "Recent Prints".
+    const feedingRecordsCollection = useMemoFirebase(() => 
+        firestore ? collection(firestore, 'feedingRecords') : null
+    , [firestore]);
+    
+    const { data: feedingRecords, isLoading } = useCollection<FeedingRecord>(feedingRecordsCollection);
+
+    const employeesCollection = useMemoFirebase(() =>
+        firestore ? collection(firestore, 'employees') : null
+    , [firestore]);
+
+    const { data: employees } = useCollection<Employee>(employeesCollection);
 
     const addMockRecord = () => {
-        if (!mockEmployees || mockEmployees.length === 0) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Cannot add mock record, employee data not loaded.' });
+        if (!firestore || !employees || employees.length === 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Cannot add mock record, data not loaded.' });
             return;
         };
 
-        const randomEmployee = mockEmployees[Math.floor(Math.random() * mockEmployees.length)];
-        const newRecord: FeedingRecord = {
+        const randomEmployee = employees[Math.floor(Math.random() * employees.length)];
+        const newRecord = {
             id: `rec-${Date.now()}`,
             employeeId: randomEmployee.id,
             employeeName: randomEmployee.name,
@@ -32,13 +48,15 @@ export const FeedingDataProvider = ({ children }: { children: ReactNode }) => {
             timestamp: new Date(),
         };
 
-        setFeedingRecords(prev => [newRecord, ...prev]);
+        // Add to a root-level collection for the dashboard feed
+        const recordsRef = collection(firestore, 'feedingRecords');
+        addDocumentNonBlocking(recordsRef, newRecord);
 
-        toast({ title: 'Success', description: 'Mock feeding record added locally.'});
+        toast({ title: 'Success', description: 'Mock feeding record added to Firestore.'});
     };
 
     return (
-        <FeedingDataContext.Provider value={{ feedingRecords, addMockRecord, isLoading }}>
+        <FeedingDataContext.Provider value={{ feedingRecords: feedingRecords || [], addMockRecord, isLoading }}>
             {children}
         </FeedingDataContext.Provider>
     );

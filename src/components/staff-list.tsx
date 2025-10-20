@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
   Table,
   TableBody,
@@ -34,7 +34,8 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
-import { employees as mockEmployees } from '@/lib/data';
+import { useFirebase, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
 
 export default function StaffList() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,8 +43,13 @@ export default function StaffList() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
-  const [isLoading, setIsLoading] = useState(false);
+  const { firestore } = useFirebase();
+
+  const employeesCollection = useMemoFirebase(() => 
+    firestore ? collection(firestore, 'employees') : null
+  , [firestore]);
+  
+  const { data: employees, isLoading } = useCollection<Employee>(employeesCollection);
 
   const filteredEmployees = useMemo(() => {
       if (!employees) return [];
@@ -65,19 +71,27 @@ export default function StaffList() {
   };
   
   const handleDelete = (employeeId: string) => {
-    setEmployees(prev => prev.filter(emp => emp.id !== employeeId));
-    toast({ title: 'Success', description: 'Employee removed from local list.'});
+    if (!firestore) return;
+    const employeeRef = doc(firestore, 'employees', employeeId);
+    deleteDocumentNonBlocking(employeeRef);
+    toast({ title: 'Success', description: 'Employee deletion initiated.'});
   };
 
   const handleSave = (employeeData: Employee, isNew: boolean) => {
+    if (!firestore) return;
+
     if (isNew) {
       if (employees && employees.some(e => e.id === employeeData.id)) {
         toast({ variant: 'destructive', title: 'Error', description: 'Employee ID must be unique.' });
         return;
       }
-      setEmployees(prev => [employeeData, ...prev]);
+       // For new employees, we use their ID as the document ID
+      const newEmployeeRef = doc(firestore, 'employees', employeeData.id);
+      addDocumentNonBlocking(collection(firestore, 'employees'), { ...employeeData, ticketBalance: employeeData.ticketBalance || 0 });
+
     } else {
-      setEmployees(prev => prev.map(emp => emp.id === employeeData.id ? employeeData : emp));
+      const employeeRef = doc(firestore, 'employees', employeeData.id);
+      updateDocumentNonBlocking(employeeRef, employeeData);
     }
   };
 
@@ -86,6 +100,8 @@ export default function StaffList() {
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!firestore) return;
+
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -101,7 +117,7 @@ export default function StaffList() {
         const dataRows = json.length > 0 && json[0].join(',').toLowerCase().includes('employee') ? json.slice(1) : json;
 
         const existingIds = new Set(employees?.map(emp => emp.id) || []);
-        let newEmployees: Employee[] = [];
+        let addedCount = 0;
         let skippedCount = 0;
         
         for (const row of dataRows) {
@@ -121,20 +137,22 @@ export default function StaffList() {
                 department: department.trim(),
                 ticketBalance: 0,
             };
-            newEmployees.push(newEmployee);
+
+            const newEmployeeRef = doc(firestore, 'employees', newEmployee.id);
+            addDocumentNonBlocking(collection(firestore, 'employees'), newEmployee);
             existingIds.add(trimmedId);
+            addedCount++;
         }
 
-        if (newEmployees.length > 0) {
-            setEmployees(prev => [...prev, ...newEmployees]);
+        if (addedCount > 0) {
             toast({
                 title: 'Upload Successful',
-                description: `${newEmployees.length} new employees added. ${skippedCount > 0 ? `${skippedCount} duplicates skipped.` : ''}`,
+                description: `${addedCount} new employees are being added. ${skippedCount > 0 ? `${skippedCount} duplicates skipped.` : ''}`,
             });
         } else {
             toast({
                 variant: 'destructive',
-                title: 'Upload Failed',
+                title: 'Upload Finished',
                 description: 'No new employees were found in the file, or all employees already exist.',
             });
         }

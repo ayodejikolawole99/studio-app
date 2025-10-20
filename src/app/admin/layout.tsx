@@ -14,7 +14,7 @@ import {
   SidebarTrigger,
   SidebarInset,
 } from '@/components/ui/sidebar';
-import { Users, Ticket, BarChart3, Settings, LayoutDashboard } from 'lucide-react';
+import { Users, Ticket, BarChart3, Settings, LayoutDashboard, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,30 +26,63 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useRouter } from 'next/navigation';
+import { useUser, useAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
 
 const navItems = [
-    { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'OPERATOR'] },
-    { href: '/admin/staff', label: 'Staff Management', icon: Users, roles: ['ADMIN'] },
-    { href: '/admin/tickets', label: 'Ticket Management', icon: Ticket, roles: ['ADMIN', 'OPERATOR'] },
-    { href: '/admin/reports', label: 'Reports', icon: BarChart3, roles: ['ADMIN', 'OPERATOR'] },
+    { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/admin/staff', label: 'Staff Management', icon: Users },
+    { href: '/admin/tickets', label: 'Ticket Management', icon: Ticket },
+    { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
 ];
 
 function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
 
-  // Mock user to bypass authentication
-  const user = {
-    id: 'mock-admin-id',
-    name: 'Admin User',
-    email: 'admin@example.com',
-    role: 'ADMIN' as 'ADMIN' | 'OPERATOR',
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.push('/login');
+    } catch (error) {
+      console.error("Error signing out: ", error);
+    }
   };
   
-  const getInitials = (name: string | null) => {
-    if (!name) return '';
+  const getInitials = (name: string | null | undefined) => {
+    if (!name) return 'A'; // Anonymous
     return name.split(' ').map(n => n[0]).join('');
   }
+
+  if (isUserLoading) {
+    return (
+        <div className="flex h-screen w-full items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-4 text-muted-foreground">Authenticating...</p>
+        </div>
+    );
+  }
+
+  // Once loading is complete, if there's still no user, redirect to login.
+  if (!user) {
+    // Using useEffect to handle redirection in a client component
+    // after the initial render cycle.
+    React.useEffect(() => {
+        router.push('/login');
+    }, [router]);
+    
+    // Render a loading/redirecting state
+    return (
+        <div className="flex h-screen w-full items-center justify-center">
+            <p className="text-muted-foreground">Redirecting to login...</p>
+        </div>
+    );
+  }
+
+  const userName = user.displayName || user.email || 'Anonymous User';
+  const userEmail = user.email || `uid: ${user.uid}`;
 
   return (
       <SidebarProvider>
@@ -63,7 +96,6 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
 
                   <SidebarMenu className="flex-grow">
                       {navItems
-                        .filter(item => user.role && item.roles.includes(user.role))
                         .map((item) => (
                           <SidebarMenuItem key={item.href}>
                               <Link href={item.href}>
@@ -84,11 +116,11 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="justify-start gap-2 p-2 h-auto w-full">
                                   <Avatar className="h-8 w-8">
-                                      <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                                      <AvatarFallback>{getInitials(userName)}</AvatarFallback>
                                   </Avatar>
                                   <div className="text-left group-data-[collapsible=icon]:hidden">
-                                      <p className="font-medium text-sm">{user.name}</p>
-                                      <p className="text-xs text-muted-foreground">{user.email}</p>
+                                      <p className="font-medium text-sm">{userName}</p>
+                                      <p className="text-xs text-muted-foreground">{userEmail}</p>
                                   </div>
                             </Button>
                         </DropdownMenuTrigger>
@@ -98,7 +130,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                           <DropdownMenuItem>Profile</DropdownMenuItem>
                           <DropdownMenuItem>Settings</DropdownMenuItem>
                           <DropdownMenuSeparator />
-                           <DropdownMenuItem onClick={() => router.push('/login')}>
+                           <DropdownMenuItem onClick={handleLogout}>
                             Log out
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -124,7 +156,6 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return (
-      <AdminLayoutContent>{children}</AdminLayoutContent>
-  )
+  // FirebaseProvider is now in the root layout, so it's available here.
+  return <AdminLayoutContent>{children}</AdminLayoutContent>;
 }

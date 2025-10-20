@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Employee } from '@/lib/types';
 import BiometricScanner from '@/components/biometric-scanner';
 import { useToast } from "@/hooks/use-toast"
-import { useFeedingData } from '@/context/feeding-data-context';
 import { FeedingDataProvider } from '@/context/feeding-data-context';
-import { employees as mockEmployees } from '@/lib/data';
+import { useFirebase, useCollection, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking, useUser } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
 
 
 function AuthPageContent() {
@@ -16,10 +16,14 @@ function AuthPageContent() {
   const [authenticatedEmployee, setAuthenticatedEmployee] = useState<Employee | null>(null);
   const router = useRouter();
   const { toast } = useToast();
-  const { addMockRecord } = useFeedingData();
-  const [employees, setEmployees] = useState(mockEmployees);
-  const isLoading = false;
+  const { user } = useUser();
+  const { firestore } = useFirebase();
 
+  const employeesCollection = useMemoFirebase(() => 
+    firestore ? collection(firestore, 'employees') : null
+  , [firestore]);
+  
+  const { data: employees, isLoading } = useCollection<Employee>(employeesCollection);
 
   const handleScan = async () => {
     if (isLoading || !employees || employees.length === 0) {
@@ -32,45 +36,60 @@ function AuthPageContent() {
     setAuthenticatedEmployee(null);
 
     // Simulate biometric scan and user identification
-    const employee = employees[Math.floor(Math.random() * employees.length)];
+    // In a real app, this would involve a call to a biometric verification service
+    const randomEmployee = employees[Math.floor(Math.random() * employees.length)];
     
-    if (employee.ticketBalance <= 0) {
+    if ((randomEmployee.ticketBalance || 0) <= 0) {
         toast({
             variant: "destructive",
             title: "Authentication Failed",
-            description: `${employee.name} has no available tickets.`,
+            description: `${randomEmployee.name} has no available tickets.`,
         });
         setIsScanning(false);
         return;
     }
 
-
     // On successful scan from the SecuGen device:
     setTimeout(async () => {
+      if (!firestore || !user) {
+        setIsScanning(false);
+        toast({ variant: "destructive", title: "Error", description: "System not ready. Please try again." });
+        return;
+      }
       
       setIsScanning(false);
       setIsAuthenticated(true);
-      setAuthenticatedEmployee(employee);
+      setAuthenticatedEmployee(randomEmployee);
       
       toast({
         title: "Authentication Successful",
-        description: `Welcome, ${employee.name}. Generating your ticket...`,
+        description: `Welcome, ${randomEmployee.name}. Generating your ticket...`,
       });
+      
+      // 1. Decrement ticket balance
+      const newBalance = Math.max(0, (randomEmployee.ticketBalance || 0) - 1);
+      const employeeRef = doc(firestore, 'employees', randomEmployee.id);
+      updateDocumentNonBlocking(employeeRef, { ticketBalance: newBalance });
 
-      addMockRecord();
-
-      // Decrement ticket balance locally
-      setEmployees(prev => prev.map(e => e.id === employee.id ? { ...e, ticketBalance: Math.max(0, e.ticketBalance - 1) } : e));
-
-
+      // 2. Create a feeding record
+      const feedingRecordData = {
+        employeeId: randomEmployee.id,
+        employeeName: randomEmployee.name,
+        department: randomEmployee.department,
+        timestamp: new Date(),
+        mealType: "Lunch", // Example meal type
+      };
+      const feedingRecordsRef = collection(firestore, 'employees', randomEmployee.id, 'feedingRecords');
+      addDocumentNonBlocking(feedingRecordsRef, feedingRecordData);
+      
+      // 3. Generate ticket data for the next page
       const ticketData = {
         ticketId: `T-${Date.now()}`,
-        employeeName: employee.name,
-        department: employee.department,
+        employeeName: randomEmployee.name,
+        department: randomEmployee.department,
         timestamp: new Date().toISOString(),
       };
 
-      // Redirect to the ticket page with ticket data
       const params = new URLSearchParams({
           ticket: JSON.stringify(ticketData),
       });
@@ -112,9 +131,7 @@ function AuthPageContent() {
 }
 
 export default function AuthenticationPage() {
-  return (
-    <FeedingDataProvider>
-      <AuthPageContent/>
-    </FeedingDataProvider>
-  )
+  // FeedingDataProvider is not needed here anymore, as data is fetched directly
+  // It's still used on the dashboard, so we leave the component as is.
+  return <AuthPageContent/>
 }
