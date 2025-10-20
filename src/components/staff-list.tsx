@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Table,
   TableBody,
@@ -16,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Search, Upload } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -34,7 +34,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
-import * as XLSX from 'xlsx';
 import { employees as mockEmployees } from '@/lib/data';
 
 
@@ -44,7 +43,6 @@ export default function StaffList() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
   const { toast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredEmployees = useMemo(() => {
       return employees.filter((employee) =>
@@ -81,81 +79,6 @@ export default function StaffList() {
     }
   };
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: 'binary' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as string[][];
-
-        const dataRows = json.length > 0 && json[0].join(',').toLowerCase().includes('employee') ? json.slice(1) : json;
-
-        const newEmployees: Employee[] = [];
-        const existingIds = new Set(employees.map(emp => emp.id));
-        let addedCount = 0;
-        let skippedCount = 0;
-        
-        for (const row of dataRows) {
-            if (row.length < 3 || !row[0] || !row[1] || !row[2]) continue;
-
-            const [name, id, department] = row;
-            const trimmedId = id.trim();
-            if (existingIds.has(trimmedId)) {
-                console.warn(`Skipping duplicate employee ID: ${trimmedId}`);
-                skippedCount++;
-                continue;
-            }
-            
-            const newEmployee: Employee = {
-                id: trimmedId,
-                name: name.trim(),
-                department: department.trim(),
-                ticketBalance: 0,
-            };
-            newEmployees.push(newEmployee);
-            existingIds.add(trimmedId);
-            addedCount++;
-        }
-
-        if (addedCount > 0) {
-            setEmployees(prev => [...prev, ...newEmployees]);
-            toast({
-                title: 'Upload Successful',
-                description: `${addedCount} new employees added. ${skippedCount > 0 ? `${skippedCount} duplicates skipped.` : ''}`,
-            });
-        } else {
-            toast({
-                variant: 'destructive',
-                title: 'Upload Finished',
-                description: 'No new employees were found in the file, or all employees already exist.',
-            });
-        }
-
-      } catch (error) {
-        console.error("Error parsing CSV:", error);
-        toast({
-          variant: 'destructive',
-          title: 'Upload Failed',
-          description: 'Could not parse the CSV file. Please check the format.',
-        });
-      } finally {
-        if(event.target) event.target.value = '';
-      }
-    };
-    reader.readAsBinaryString(file);
-  };
-
-
   return (
     <>
       <Card>
@@ -163,17 +86,6 @@ export default function StaffList() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <CardTitle>All Staff</CardTitle>
             <div className="flex gap-2">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-                className="hidden"
-              />
-              <Button onClick={handleUploadClick} variant="outline">
-                <Upload className="mr-2" />
-                Upload File
-              </Button>
               <Button onClick={handleAdd}>
                 <PlusCircle className="mr-2" />
                 Add Staff
