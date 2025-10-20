@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
@@ -34,25 +35,18 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
-import { useFirebase, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { employees as mockEmployees } from '@/lib/data';
+
 
 export default function StaffList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditOpen, setEditOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { firestore } = useFirebase();
-
-  const employeesCollection = useMemoFirebase(() => 
-    firestore ? collection(firestore, 'employees') : null
-  , [firestore]);
-  
-  const { data: employees, isLoading } = useCollection<Employee>(employeesCollection);
 
   const filteredEmployees = useMemo(() => {
-      if (!employees) return [];
       return employees.filter((employee) =>
           employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           employee.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -71,27 +65,19 @@ export default function StaffList() {
   };
   
   const handleDelete = (employeeId: string) => {
-    if (!firestore) return;
-    const employeeRef = doc(firestore, 'employees', employeeId);
-    deleteDocumentNonBlocking(employeeRef);
-    toast({ title: 'Success', description: 'Employee deletion initiated.'});
+    setEmployees(prev => prev.filter(e => e.id !== employeeId));
+    toast({ title: 'Success', description: 'Employee removed from the list.'});
   };
 
   const handleSave = (employeeData: Employee, isNew: boolean) => {
-    if (!firestore) return;
-
     if (isNew) {
-      if (employees && employees.some(e => e.id === employeeData.id)) {
+      if (employees.some(e => e.id === employeeData.id)) {
         toast({ variant: 'destructive', title: 'Error', description: 'Employee ID must be unique.' });
         return;
       }
-       // For new employees, we use their ID as the document ID
-      const newEmployeeRef = doc(firestore, 'employees', employeeData.id);
-      addDocumentNonBlocking(collection(firestore, 'employees'), { ...employeeData, ticketBalance: employeeData.ticketBalance || 0 });
-
+      setEmployees(prev => [...prev, { ...employeeData, ticketBalance: employeeData.ticketBalance || 0 }]);
     } else {
-      const employeeRef = doc(firestore, 'employees', employeeData.id);
-      updateDocumentNonBlocking(employeeRef, employeeData);
+      setEmployees(prev => prev.map(e => e.id === employeeData.id ? employeeData : e));
     }
   };
 
@@ -100,8 +86,6 @@ export default function StaffList() {
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!firestore) return;
-
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -116,7 +100,8 @@ export default function StaffList() {
 
         const dataRows = json.length > 0 && json[0].join(',').toLowerCase().includes('employee') ? json.slice(1) : json;
 
-        const existingIds = new Set(employees?.map(emp => emp.id) || []);
+        const newEmployees: Employee[] = [];
+        const existingIds = new Set(employees.map(emp => emp.id));
         let addedCount = 0;
         let skippedCount = 0;
         
@@ -137,17 +122,16 @@ export default function StaffList() {
                 department: department.trim(),
                 ticketBalance: 0,
             };
-
-            const newEmployeeRef = doc(firestore, 'employees', newEmployee.id);
-            addDocumentNonBlocking(collection(firestore, 'employees'), newEmployee);
+            newEmployees.push(newEmployee);
             existingIds.add(trimmedId);
             addedCount++;
         }
 
         if (addedCount > 0) {
+            setEmployees(prev => [...prev, ...newEmployees]);
             toast({
                 title: 'Upload Successful',
-                description: `${addedCount} new employees are being added. ${skippedCount > 0 ? `${skippedCount} duplicates skipped.` : ''}`,
+                description: `${addedCount} new employees added. ${skippedCount > 0 ? `${skippedCount} duplicates skipped.` : ''}`,
             });
         } else {
             toast({
@@ -218,14 +202,7 @@ export default function StaffList() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && (
-                 <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
-                      Loading staff data...
-                    </TableCell>
-                  </TableRow>
-              )}
-              {!isLoading && filteredEmployees && filteredEmployees.map((employee) => (
+              {filteredEmployees && filteredEmployees.map((employee) => (
                 <TableRow key={employee.id}>
                   <TableCell>
                     <span className="font-medium">{employee.name}</span>
@@ -272,7 +249,7 @@ export default function StaffList() {
                   </TableCell>
                 </TableRow>
               ))}
-               {!isLoading && (!filteredEmployees || filteredEmployees.length === 0) && (
+               {(!filteredEmployees || filteredEmployees.length === 0) && (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
                       No staff members found.
