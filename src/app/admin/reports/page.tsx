@@ -8,18 +8,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { subWeeks, subMonths, startOfDay } from 'date-fns';
-import { Ticket, Users, BarChart3, FileDown } from 'lucide-react';
+import { Ticket, Users, BarChart3, FileDown, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 type TimeFrame = 'day' | 'week' | 'month' | 'all';
-type ReportType = 'user' | 'department';
 
 const filterRecordsByTimeFrame = (records: FeedingRecord[], timeFrame: TimeFrame): FeedingRecord[] => {
     if (!records) return [];
     const now = new Date();
-    const recordsWithDates = records.map(r => ({...r, timestamp: (r.timestamp as any).toDate ? (r.timestamp as any).toDate() : new Date(r.timestamp) }));
+    // Context provider already converts Timestamps to Dates
+    const recordsWithDates = records as (FeedingRecord & { timestamp: Date })[];
 
     switch (timeFrame) {
         case 'day':
@@ -61,7 +61,7 @@ const aggregateByDepartment = (records: FeedingRecord[]) => {
 };
 
 
-const ReportTable = ({ title, data, headers }: { title: string, data: { name: string, count: number }[] | undefined, headers: [string, string] }) => (
+const ReportTable = ({ title, data, headers, isLoading }: { title: string, data: { name: string, count: number }[] | undefined, headers: [string, string], isLoading: boolean }) => (
     <Card>
         <CardHeader>
             <CardTitle>{title}</CardTitle>
@@ -75,13 +75,20 @@ const ReportTable = ({ title, data, headers }: { title: string, data: { name: st
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {data && data.map(item => (
-                        <TableRow key={item.name}>
-                            <TableCell className="font-medium">{item.name}</TableCell>
-                            <TableCell className="text-right">{item.count}</TableCell>
+                    {isLoading ? (
+                        <TableRow>
+                            <TableCell colSpan={2} className="h-24 text-center">
+                                <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                            </TableCell>
                         </TableRow>
-                    ))}
-                    {(!data || data.length === 0) && (
+                    ) : data && data.length > 0 ? (
+                        data.map(item => (
+                            <TableRow key={item.name}>
+                                <TableCell className="font-medium">{item.name}</TableCell>
+                                <TableCell className="text-right">{item.count}</TableCell>
+                            </TableRow>
+                        ))
+                    ) : (
                         <TableRow>
                             <TableCell colSpan={2} className="text-center text-muted-foreground">
                                 No data for this period.
@@ -94,14 +101,14 @@ const ReportTable = ({ title, data, headers }: { title: string, data: { name: st
     </Card>
 );
 
-const StatCard = ({ title, value, icon }: { title: string, value: string | number, icon: React.ReactNode }) => (
+const StatCard = ({ title, value, icon, isLoading }: { title: string, value: string | number, icon: React.ReactNode, isLoading: boolean }) => (
     <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{title}</CardTitle>
             {icon}
         </CardHeader>
         <CardContent>
-            <div className="text-2xl font-bold">{value}</div>
+            {isLoading ? <div className="h-8 w-1/2 bg-muted animate-pulse rounded" /> : <div className="text-2xl font-bold">{value}</div>}
         </CardContent>
     </Card>
 );
@@ -109,7 +116,7 @@ const StatCard = ({ title, value, icon }: { title: string, value: string | numbe
 
 function ReportsContent() {
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('day');
-  const { feedingRecords } = useFeedingData();
+  const { feedingRecords, isLoading } = useFeedingData();
 
   const filteredData = useMemo(() => filterRecordsByTimeFrame(feedingRecords, timeFrame), [feedingRecords, timeFrame]);
   const userReportData = useMemo(() => aggregateByUser(filteredData), [filteredData]);
@@ -118,7 +125,7 @@ function ReportsContent() {
   const totalTickets = filteredData.length;
   const uniqueUsers = new Set(filteredData.map(r => r.employeeId)).size;
 
-  const exportHeaders = ["Employee Number", "Employee Name", "Department", "Time Printed"];
+  const exportHeaders = ["Employee ID", "Employee Name", "Department", "Time Printed"];
 
   const handleExportPDF = () => {
     const doc = new jsPDF();
@@ -131,7 +138,7 @@ function ReportsContent() {
           item.employeeId,
           item.employeeName,
           item.department,
-          item.timestamp.toLocaleString()
+          (item.timestamp as Date).toLocaleString()
       ]),
       startY: 20,
     });
@@ -146,26 +153,18 @@ function ReportsContent() {
           item.employeeId,
           item.employeeName,
           item.department,
-          item.timestamp.toLocaleString()
+          (item.timestamp as Date).toLocaleString()
       ])
     ];
 
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
     XLSX.utils.sheet_add_aoa(worksheet, [], { origin: -1 });
 
-    // Set column widths
-    const colWidths = [
-        { wch: 15 }, // Employee Number
-        { wch: 25 }, // Employee Name
-        { wch: 20 }, // Department
-        { wch: 25 }, // Time Printed
-    ];
+    const colWidths = [ { wch: 15 }, { wch: 25 }, { wch: 20 }, { wch: 25 } ];
     worksheet['!cols'] = colWidths;
-
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Detailed Report');
-
     XLSX.writeFile(workbook, `detailed_report_${timeFrame}.xlsx`);
   };
 
@@ -206,9 +205,9 @@ function ReportsContent() {
       </header>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard title="Total Tickets Printed" value={totalTickets} icon={<Ticket className="h-4 w-4 text-muted-foreground" />} />
-        <StatCard title="Unique Employees" value={uniqueUsers} icon={<Users className="h-4 w-4 text-muted-foreground" />} />
-        <StatCard title="Average per User" value={uniqueUsers > 0 ? (totalTickets / uniqueUsers).toFixed(1) : 0} icon={<BarChart3 className="h-4 w-4 text-muted-foreground" />} />
+        <StatCard title="Total Tickets Printed" value={totalTickets} icon={<Ticket className="h-4 w-4 text-muted-foreground" />} isLoading={isLoading} />
+        <StatCard title="Unique Employees" value={uniqueUsers} icon={<Users className="h-4 w-4 text-muted-foreground" />} isLoading={isLoading} />
+        <StatCard title="Average per User" value={uniqueUsers > 0 ? (totalTickets / uniqueUsers).toFixed(1) : 0} icon={<BarChart3 className="h-4 w-4 text-muted-foreground" />} isLoading={isLoading} />
       </div>
 
       <Tabs defaultValue="user">
@@ -221,6 +220,7 @@ function ReportsContent() {
                 title="Prints by User"
                 data={userReportData}
                 headers={["Employee", "Tickets Printed"]}
+                isLoading={isLoading}
             />
         </TabsContent>
         <TabsContent value="department" className="mt-4">
@@ -228,6 +228,7 @@ function ReportsContent() {
                 title="Prints by Department"
                 data={departmentReportData}
                 headers={["Department", "Tickets Printed"]}
+                isLoading={isLoading}
             />
         </TabsContent>
       </Tabs>

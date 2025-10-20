@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -6,19 +5,24 @@ import { useRouter } from 'next/navigation';
 import type { Employee } from '@/lib/types';
 import BiometricScanner from '@/components/biometric-scanner';
 import { useToast } from "@/hooks/use-toast"
-import { employees as mockEmployees } from '@/lib/data';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, doc, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { Loader2 } from 'lucide-react';
 
 function AuthPageContent() {
   const [isScanning, setIsScanning] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authenticatedEmployee, setAuthenticatedEmployee] = useState<Employee | null>(null);
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees); // Use state for employees
   const router = useRouter();
   const { toast } = useToast();
-  const isLoading = false; // Data is local
+  const firestore = useFirestore();
+
+  const employeesRef = useMemoFirebase(() => firestore ? collection(firestore, 'employees') : null, [firestore]);
+  const { data: employees, isLoading: areEmployeesLoading } = useCollection<Employee>(employeesRef);
+
 
   const handleScan = async () => {
-    if (isLoading || !employees || employees.length === 0) {
+    if (areEmployeesLoading || !employees || employees.length === 0 || !firestore) {
       toast({ variant: "destructive", title: "System Not Ready", description: "Employee data is not loaded yet. Please wait." });
       return;
     }
@@ -27,51 +31,88 @@ function AuthPageContent() {
     setIsAuthenticated(false);
     setAuthenticatedEmployee(null);
 
-    // Simulate biometric scan and user identification
+    // In a real scenario, you'd get the employeeId from the biometric scanner API.
+    // Here, we simulate by picking a random employee.
     const randomEmployee = employees[Math.floor(Math.random() * employees.length)];
-    
-    if ((randomEmployee.ticketBalance || 0) <= 0) {
+    const employeeId = randomEmployee.id;
+
+    try {
+        // Use a transaction to ensure atomic read/write of ticket balance and record creation
+        await runTransaction(firestore, async (transaction) => {
+            const employeeDocRef = doc(firestore, "employees", employeeId);
+            const employeeDoc = await transaction.get(employeeDocRef);
+
+            if (!employeeDoc.exists()) {
+                throw new Error("Employee not found in database.");
+            }
+
+            const currentBalance = employeeDoc.data().ticketBalance;
+
+            if (currentBalance <= 0) {
+                throw new Error(`${employeeDoc.data().name} has no available tickets.`);
+            }
+
+            // 1. Decrement ticket balance
+            const newBalance = currentBalance - 1;
+            transaction.update(employeeDocRef, { ticketBalance: newBalance });
+
+            // 2. Create a new feeding record
+            const feedingRecordRef = doc(collection(firestore, "feedingRecords"));
+            transaction.set(feedingRecordRef, {
+                employeeId: employeeId,
+                employeeName: employeeDoc.data().name,
+                department: employeeDoc.data().department,
+                timestamp: serverTimestamp(),
+            });
+            
+            // This data is passed to the next page
+            return {
+                employeeData: employeeDoc.data() as Employee,
+                ticketId: feedingRecordRef.id,
+            };
+        }).then(result => {
+             // This block runs if the transaction was successful
+            setIsScanning(false);
+            setIsAuthenticated(true);
+            setAuthenticatedEmployee({ ...result.employeeData, id: employeeId });
+
+            toast({
+                title: "Authentication Successful",
+                description: `Welcome, ${result.employeeData.name}. Generating your ticket...`,
+            });
+             
+            const ticketDataForPage = {
+                ticketId: result.ticketId,
+                employeeName: result.employeeData.name,
+                department: result.employeeData.department,
+                timestamp: new Date().toISOString(), // Use current client time for immediate display
+            };
+
+            const params = new URLSearchParams({
+                ticket: JSON.stringify(ticketDataForPage),
+            });
+            router.push(`/ticket?${params.toString()}`);
+        });
+
+    } catch (error: any) {
+        setIsScanning(false);
+        console.error("Transaction failed: ", error);
         toast({
             variant: "destructive",
             title: "Authentication Failed",
-            description: `${randomEmployee.name} has no available tickets.`,
+            description: error.message || "An unexpected error occurred.",
         });
-        setIsScanning(false);
-        return;
     }
-
-    // On successful scan from the SecuGen device:
-    setTimeout(async () => {
-      setIsScanning(false);
-      setIsAuthenticated(true);
-      setAuthenticatedEmployee(randomEmployee);
-      
-      toast({
-        title: "Authentication Successful",
-        description: `Welcome, ${randomEmployee.name}. Generating your ticket...`,
-      });
-      
-      // 1. Decrement ticket balance (locally)
-      const newBalance = Math.max(0, (randomEmployee.ticketBalance || 0) - 1);
-      setEmployees(prev => prev.map(e => e.id === randomEmployee.id ? {...e, ticketBalance: newBalance} : e));
-      
-      // 2. Create a feeding record (locally - this won't be persisted globally for now)
-      console.log(`Feeding record for ${randomEmployee.name} created locally.`);
-      
-      // 3. Generate ticket data for the next page
-      const ticketData = {
-        ticketId: `T-${Date.now()}`,
-        employeeName: randomEmployee.name,
-        department: randomEmployee.department,
-        timestamp: new Date().toISOString(),
-      };
-
-      const params = new URLSearchParams({
-          ticket: JSON.stringify(ticketData),
-      });
-      router.push(`/ticket?${params.toString()}`);
-    }, 1500); // Simulate scanning delay
   };
+
+  if (areEmployeesLoading) {
+    return (
+        <div className="flex h-screen w-full items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-4 text-muted-foreground">Loading employee data...</p>
+        </div>
+    );
+  }
 
   return (
     <>

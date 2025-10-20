@@ -10,9 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Ticket, Users, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FeedingDataProvider, useFeedingData } from '@/context/feeding-data-context';
-import { useFirestore } from '@/firebase';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { collection } from 'firebase/firestore';
+import { Timestamp } from 'firebase/firestore';
 
 const StatCard = ({ title, value, icon, isLoading }: { title: string, value: string | number, icon: React.ReactNode, isLoading?: boolean }) => (
     <Card>
@@ -31,7 +29,6 @@ function DashboardContent() {
   const [isAnalyzing, startAnalysisTransition] = useTransition();
   const { toast } = useToast();
   const { feedingRecords, addMockRecord, isLoading } = useFeedingData();
-  const firestore = useFirestore();
 
   const handleAnalysis = () => {
     if(!feedingRecords || feedingRecords.length === 0){
@@ -62,37 +59,31 @@ function DashboardContent() {
     });
   };
 
-  const handleAddMockRecord = () => {
-    addMockRecord();
-    toast({ title: 'Success', description: 'Mock feeding record added.'});
-  }
-
   const sortedRecords = useMemo(() => {
     if (!feedingRecords) return [];
-    // Firestore timestamps need to be converted to JS Dates
-    const recordsWithDates = feedingRecords.map(r => ({...r, timestamp: (r.timestamp as any).toDate ? (r.timestamp as any).toDate() : new Date(r.timestamp) }));
-    return recordsWithDates.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    // The context now provides Date objects
+    return [...feedingRecords].sort((a, b) => (b.timestamp as Date).getTime() - (a.timestamp as Date).getTime());
   }, [feedingRecords]);
   
   const ticketsToday = useMemo(() => {
     if (!sortedRecords) return 0;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return sortedRecords.filter(r => r.timestamp >= today).length;
+    return sortedRecords.filter(r => (r.timestamp as Date) >= today).length;
   }, [sortedRecords]);
 
   const ticketsThisWeek = useMemo(() => {
     if (!sortedRecords) return 0;
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    return sortedRecords.filter(r => r.timestamp >= oneWeekAgo).length;
+    return sortedRecords.filter(r => (r.timestamp as Date) >= oneWeekAgo).length;
   }, [sortedRecords]);
 
   const uniqueEmployeesToday = useMemo(() => {
     if (!sortedRecords) return 0;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const uniqueIds = new Set(sortedRecords.filter(r => r.timestamp >= today).map(r => r.employeeId));
+    const uniqueIds = new Set(sortedRecords.filter(r => (r.timestamp as Date) >= today).map(r => r.employeeId));
     return uniqueIds.size;
   }, [sortedRecords]);
 
@@ -116,7 +107,7 @@ function DashboardContent() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8">
         <div className="lg:col-span-2 space-y-4">
            <FeedingHistory records={sortedRecords.slice(0,10) || []} />
-           <Button onClick={handleAddMockRecord} className="w-full">Add Mock Printing Record</Button>
+           <Button onClick={addMockRecord} className="w-full">Add Mock Printing Record (For Demo)</Button>
         </div>
 
         <div className="lg:col-span-3">

@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { Employee } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
@@ -22,12 +21,6 @@ export default function IndividualTicketControl({ employees, onUpdate }: Individ
     const { toast } = useToast();
 
     const selectedEmployeeData = employees.find(emp => emp.id === selectedEmployeeId);
-    
-    // This effect ensures that if the employee data changes (e.g. balance update), the UI reflects it.
-    useEffect(() => {
-        // This is primarily to force a re-render if the parent `employees` array changes.
-        // No direct action needed, as the `selectedEmployeeData` is already derived from the latest prop.
-    }, [employees]);
 
     const handleUpdate = (operation: 'add' | 'subtract') => {
         if (!selectedEmployeeId) {
@@ -42,10 +35,8 @@ export default function IndividualTicketControl({ employees, onUpdate }: Individ
         const updateAmount = operation === 'add' ? amount : -amount;
         onUpdate(selectedEmployeeId, updateAmount);
 
-        toast({
-            title: 'Success',
-            description: `${amount} ticket(s) have been ${operation === 'add' ? 'added to' : 'subtracted from'} ${selectedEmployeeData?.name}.`,
-        });
+        // Reset amount after update
+        setAmount(1);
     };
 
     return (

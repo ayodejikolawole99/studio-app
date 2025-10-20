@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Table,
   TableBody,
@@ -34,7 +33,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
-import { employees as mockEmployees } from '@/lib/data';
+import { useFirestore, useCollection, useMemoFirebase, setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
 
 
 export default function StaffList() {
@@ -42,18 +42,11 @@ export default function StaffList() {
   const [isEditOpen, setEditOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const { toast } = useToast();
-  
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const firestore = useFirestore();
 
-  useEffect(() => {
-    // Simulate fetching data from a local source
-    setIsLoading(true);
-    setTimeout(() => {
-        setEmployees(mockEmployees);
-        setIsLoading(false);
-    }, 500);
-  }, []);
+  const employeesRef = useMemoFirebase(() => firestore ? collection(firestore, 'employees') : null, [firestore]);
+  const { data: employees, isLoading } = useCollection<Employee>(employeesRef);
+
 
   const filteredEmployees = useMemo(() => {
       if (!employees) return [];
@@ -75,16 +68,25 @@ export default function StaffList() {
   };
   
   const handleDelete = (employeeId: string) => {
-    setEmployees(prev => prev.filter(emp => emp.id !== employeeId));
-    toast({ title: 'Success (Local)', description: 'Employee has been deleted. (This is not saved).'});
+    if (!firestore) return;
+    const docRef = doc(firestore, 'employees', employeeId);
+    deleteDocumentNonBlocking(docRef);
+    toast({ title: 'Success', description: 'Employee has been deleted.'});
   };
 
   const handleSave = (employeeData: Employee, isNew: boolean) => {
-    if (isNew) {
-        setEmployees(prev => [...prev, { ...employeeData, ticketBalance: 0 }]);
-    } else {
-        setEmployees(prev => prev.map(emp => emp.id === employeeData.id ? employeeData : emp));
-    }
+    if (!firestore) return;
+
+    // The document ID is the employee ID
+    const docRef = doc(firestore, 'employees', employeeData.id);
+    
+    // For a new employee, we set the initial data. For an existing one, we merge to avoid overwriting fields.
+    setDocumentNonBlocking(docRef, employeeData, { merge: !isNew });
+
+    toast({
+        title: "Success",
+        description: `Employee ${isNew ? 'added' : 'updated'} successfully.`,
+    });
   };
 
   return (
@@ -160,7 +162,7 @@ export default function StaffList() {
                                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                 <AlertDialogDescription>
                                   This action cannot be undone. This will permanently delete the
-                                  employee account and remove their data from our servers.
+                                  employee record from the database.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>

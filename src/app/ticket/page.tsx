@@ -12,12 +12,12 @@ function TicketPageContent() {
   const router = useRouter();
   const ticketJSON = searchParams.get('ticket');
   
-  let ticket: TicketData | null = null;
+  let ticket: (Omit<TicketData, 'timestamp'> & { timestamp: Date }) | null = null;
   if (ticketJSON) {
     const parsed = JSON.parse(ticketJSON);
     ticket = {
       ...parsed,
-      timestamp: new Date(parsed.timestamp),
+      timestamp: new Date(parsed.timestamp), // Ensure timestamp is a Date object
     };
   }
 

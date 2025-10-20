@@ -1,66 +1,69 @@
-
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import type { Employee } from '@/lib/types';
 import IndividualTicketControl from '@/components/individual-ticket-control';
 import BulkTicketControl from '@/components/bulk-ticket-control';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { employees as mockEmployees } from '@/lib/data';
+import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
 
 export default function TicketsPage() {
   const { toast } = useToast();
-  const [employees, setEmployees] = useState<Employee[] | null>(null);
-  const [areEmployeesLoading, setAreEmployeesLoading] = useState(true);
-  
-  useEffect(() => {
-    // Simulate fetching data
-    setTimeout(() => {
-        setEmployees(mockEmployees);
-        setAreEmployeesLoading(false);
-    }, 500);
-  }, []);
+  const firestore = useFirestore();
+
+  const employeesRef = useMemoFirebase(() => firestore ? collection(firestore, 'employees') : null, [firestore]);
+  const { data: employees, isLoading: areEmployeesLoading } = useCollection<Employee>(employeesRef);
 
   const departments = useMemo(() => {
     if (!employees) return [];
-    return [...new Set(employees.map(e => e.department))];
+    const uniqueDepartments = [...new Set(employees.map(e => e.department))];
+    return uniqueDepartments.sort();
   }, [employees]);
 
   const handleIndividualUpdate = (employeeId: string, amount: number) => {
-    if (!employees) return;
+    if (!firestore || !employees) return;
     
     const employee = employees.find(e => e.id === employeeId);
     if (!employee) return;
 
     const newBalance = Math.max(0, (employee.ticketBalance || 0) + amount);
     
-    setEmployees(prev => prev!.map(e => e.id === employeeId ? { ...e, ticketBalance: newBalance } : e));
+    const employeeDocRef = doc(firestore, "employees", employeeId);
+    updateDocumentNonBlocking(employeeDocRef, { ticketBalance: newBalance });
 
     toast({
-      title: 'Success (Local)',
-      description: `Ticket balance for ${employee?.name} is now ${newBalance}. (This is not saved).`
+      title: 'Update Sent',
+      description: `Ticket balance for ${employee?.name} will be updated to ${newBalance}.`
     });
   };
   
   const handleBulkUpdate = (department: string, amount: number) => {
-    if (!employees) return;
+    if (!firestore || !employees) return;
 
     const employeesToUpdate = department === 'all'
         ? employees
         : employees.filter(emp => emp.department === department);
+    
+    if (employeesToUpdate.length === 0 && department !== 'all') {
+      toast({
+        variant: 'destructive',
+        title: 'No Employees Found',
+        description: `No employees found in the ${department} department.`
+      });
+      return;
+    }
 
-    setEmployees(prev => prev!.map(emp => {
-      if (employeesToUpdate.find(e => e.id === emp.id)) {
-        const newBalance = Math.max(0, (emp.ticketBalance || 0) + amount);
-        return { ...emp, ticketBalance: newBalance };
-      }
-      return emp;
-    }));
+    employeesToUpdate.forEach(emp => {
+      const newBalance = Math.max(0, (emp.ticketBalance || 0) + amount);
+      const employeeDocRef = doc(firestore, "employees", emp.id);
+      updateDocumentNonBlocking(employeeDocRef, { ticketBalance: newBalance });
+    });
     
     toast({
-      title: 'Success (Local)',
-      description: `Ticket balance updates applied for ${department === 'all' ? 'all employees' : `the ${department} department`}. (This is not saved).`
+      title: 'Bulk Update Sent',
+      description: `Ticket balance updates sent for ${department === 'all' ? 'all employees' : `the ${department} department`}.`
     });
   };
 

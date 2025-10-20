@@ -7,7 +7,7 @@ import { Ticket, Utensils } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 
 interface MealTicketProps {
-  ticket: TicketData | null;
+  ticket: (Omit<TicketData, 'timestamp'> & { timestamp: Date }) | null;
 }
 
 export default function MealTicket({ ticket }: MealTicketProps) {
@@ -46,6 +46,10 @@ export default function MealTicket({ ticket }: MealTicketProps) {
             <div className="flex justify-between">
                 <span className="font-bold">Employee:</span>
                 <span>{ticket.employeeName}</span>
+            </div>
+            <div className="flex justify-between">
+                <span className="font-bold">Department:</span>
+                <span>{ticket.department}</span>
             </div>
             <div className="flex justify-between">
                 <span className="font-bold">Ticket ID:</span>

@@ -1,228 +1,94 @@
 {
   "entities": {
     "Employee": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Employee",
       "type": "object",
       "description": "Represents an employee in the canteen system.",
       "properties": {
-        "id": {
+        "name": {
           "type": "string",
-          "description": "Unique identifier for the employee.",
-          "format": "uuid"
+          "description": "Full name of the employee."
         },
         "employeeId": {
           "type": "string",
-          "description": "The employee's official ID number."
-        },
-        "firstName": {
-          "type": "string",
-          "description": "The first name of the employee."
-        },
-        "lastName": {
-          "type": "string",
-          "description": "The last name of the employee."
+          "description": "The employee's official ID number, used as the document ID."
         },
         "department": {
           "type": "string",
           "description": "The department the employee belongs to."
         },
-        "email": {
-          "type": "string",
-          "description": "The email address of the employee.",
-          "format": "email"
+        "ticketBalance": {
+            "type": "number",
+            "description": "The number of meal tickets the employee currently has."
+        },
+        "hasBiometric": {
+            "type": "boolean",
+            "description": "Indicates if biometric data has been enrolled for this employee."
         }
       },
       "required": [
-        "id",
+        "name",
         "employeeId",
-        "firstName",
-        "lastName"
-      ]
-    },
-    "BiometricData": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "BiometricData",
-      "type": "object",
-      "description": "Stores biometric information for employee authentication.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the biometric data record."
-        },
-        "employeeId": {
-          "type": "string",
-          "description": "Reference to Employee. (Relationship: Employee 1:1 BiometricData)"
-        },
-        "biometricTemplate": {
-          "type": "string",
-          "description": "The biometric template data.  Note: Store securely and consider encryption."
-        },
-        "biometricType": {
-          "type": "string",
-          "description": "The type of biometric data (e.g., fingerprint, facial scan)."
-        }
-      },
-      "required": [
-        "id",
-        "employeeId",
-        "biometricTemplate",
-        "biometricType"
+        "department",
+        "ticketBalance"
       ]
     },
     "FeedingRecord": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "FeedingRecord",
       "type": "object",
       "description": "Represents a record of an employee's meal consumption.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the feeding record."
-        },
         "employeeId": {
           "type": "string",
-          "description": "Reference to Employee. (Relationship: Employee 1:N FeedingRecord)"
+          "description": "The ID of the employee who consumed the meal."
+        },
+        "employeeName": {
+            "type": "string",
+            "description": "The name of the employee (denormalized for easy display)."
+        },
+        "department": {
+            "type": "string",
+            "description": "The department of the employee (denormalized)."
         },
         "timestamp": {
           "type": "string",
-          "description": "The date and time of the meal consumption.",
+          "description": "The date and time of the meal consumption, stored as a Firestore Timestamp.",
           "format": "date-time"
-        },
-        "mealType": {
-          "type": "string",
-          "description": "The type of meal consumed (e.g., breakfast, lunch, dinner)."
-        },
-        "ticketId": {
-          "type": "string",
-          "description": "Reference to Ticket. (Relationship: Ticket 1:1 FeedingRecord)"
         }
       },
       "required": [
-        "id",
         "employeeId",
-        "timestamp",
-        "mealType"
-      ]
-    },
-    "Ticket": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Ticket",
-      "type": "object",
-      "description": "Represents a meal ticket generated for an employee.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the meal ticket."
-        },
-        "employeeId": {
-          "type": "string",
-          "description": "Reference to Employee. (Relationship: Employee 1:N Ticket)"
-        },
-        "generationTime": {
-          "type": "string",
-          "description": "The date and time the ticket was generated.",
-          "format": "date-time"
-        },
-        "isValid": {
-          "type": "boolean",
-          "description": "Indicates whether the ticket is valid for use."
-        },
-        "mealType": {
-          "type": "string",
-          "description": "The type of meal the ticket is for (e.g., breakfast, lunch, dinner)."
-        }
-      },
-      "required": [
-        "id",
-        "employeeId",
-        "generationTime",
-        "isValid",
-        "mealType"
+        "employeeName",
+        "department",
+        "timestamp"
       ]
     }
   },
   "auth": {
     "providers": [
-      "password",
       "anonymous"
     ]
   },
   "firestore": {
     "structure": [
-      {
-        "path": "/employees/{employeeId}",
-        "definition": {
-          "entityName": "Employee",
-          "schema": {
-            "$ref": "#/backend/entities/Employee"
-          },
-          "description": "Stores employee profile information. The employeeId is used as the document ID.",
-          "params": [
-            {
-              "name": "employeeId",
-              "description": "The unique identifier for the employee."
+        {
+            "path": "/employees/{employeeId}",
+            "definition": {
+                "schema": {
+                    "$ref": "#/entities/Employee"
+                },
+                "description": "Stores employee profiles. The document ID is the official employee number."
             }
-          ]
-        }
-      },
-      {
-        "path": "/biometricData/{biometricId}",
-        "definition": {
-          "entityName": "BiometricData",
-          "schema": {
-            "$ref": "#/backend/entities/BiometricData"
-          },
-          "description": "Stores biometric data for employees.  Each document's ID is its biometricId.",
-          "params": [
-            {
-              "name": "biometricId",
-              "description": "The unique identifier for the biometric record."
+        },
+        {
+            "path": "/feedingRecords/{recordId}",
+            "definition": {
+                "schema": {
+                    "$ref": "#/entities/FeedingRecord"
+                },
+                "description": "A log of all feeding events. Data is denormalized for efficient querying and reporting."
             }
-          ]
         }
-      },
-      {
-        "path": "/employees/{employeeId}/feedingRecords/{feedingRecordId}",
-        "definition": {
-          "entityName": "FeedingRecord",
-          "schema": {
-            "$ref": "#/backend/entities/FeedingRecord"
-          },
-          "description": "Stores feeding records for each employee. The employeeId parameter ensures records are scoped to the individual employee. The employeeId is denormalized within the document to ensure Authorization Independence.",
-          "params": [
-            {
-              "name": "employeeId",
-              "description": "The unique identifier for the employee."
-            },
-            {
-              "name": "feedingRecordId",
-              "description": "The unique identifier for the feeding record."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/employees/{employeeId}/tickets/{ticketId}",
-        "definition": {
-          "entityName": "Ticket",
-          "schema": {
-            "$ref": "#/backend/entities/Ticket"
-          },
-          "description": "Stores meal tickets generated for each employee. The employeeId parameter ensures tickets are scoped to the individual employee. The employeeId is denormalized within the document to ensure Authorization Independence.",
-          "params": [
-            {
-              "name": "employeeId",
-              "description": "The unique identifier for the employee."
-            },
-            {
-              "name": "ticketId",
-              "description": "The unique identifier for the ticket."
-            }
-          ]
-        }
-      }
-    ],
-    "reasoning": "This Firestore data structure is designed for the Canteen Tracker application, emphasizing security, scalability, and ease of management. It focuses on storing employee records, biometric data, feeding records, and tickets, all while adhering to the core design principles of Authorization Independence, Clarity of Intent, DBAC (Database Auth), and QAPs (Rules are not Filters). The structure prioritizes path-based ownership for user-related data to simplify security rules and improve efficiency.\n\n**Authorization Independence (Denormalization):**\nThe design avoids using `get()` calls in security rules by denormalizing authorization data where needed. Since all FeedingRecords and Tickets are associated with an employee, the `employeeId` is stored directly within these documents.  This eliminates the need to fetch the employee document to verify ownership, thus ensuring authorization independence.\n\n**Structural Segregation:**\nEach collection is designed to hold documents with similar access control requirements. For instance, the 'employees' collection stores employee profiles, while 'biometricData' securely stores biometric information. This segregation ensures each collection can have clear and concise security rules.\n\n**Access Modeling:**\nPath-based ownership is utilized where appropriate.  For instance, feeding records are stored under `/employees/{employeeId}/feedingRecords/{feedingRecordId}`. This structure makes it straightforward to write rules that allow a user to access only their own feeding records.\n\n**QAPs (Rules are not Filters):**\nThe structure enables secure list operations. Because each collection contains data with a homogeneous security posture, it is possible to write rules that allow listing only the documents that the user has access to, without needing to filter the results on the client side.\n\n**Invariants:**\nThe structure supports data integrity through explicit relationships (e.g., `employeeId` in `FeedingRecord` and `Ticket`). Timestamps (`generationTime`, `timestamp`) are included to track the history of events and support chronological analysis. The use of UUIDs for document IDs ensures uniqueness and prevents accidental overwrites.\n"
+    ]
   }
 }
