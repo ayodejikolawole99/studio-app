@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -5,9 +6,8 @@ import { useRouter } from 'next/navigation';
 import type { Employee } from '@/lib/types';
 import BiometricScanner from '@/components/biometric-scanner';
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
+import { mockEmployees } from '@/lib/data';
 
 function AuthPageContent() {
   const [isScanning, setIsScanning] = useState(false);
@@ -15,14 +15,13 @@ function AuthPageContent() {
   const [authenticatedEmployee, setAuthenticatedEmployee] = useState<Employee | null>(null);
   const router = useRouter();
   const { toast } = useToast();
-  const firestore = useFirestore();
 
-  const employeesRef = useMemoFirebase(() => firestore ? collection(firestore, 'employees') : null, [firestore]);
-  const { data: employees, isLoading: areEmployeesLoading } = useCollection<Employee>(employeesRef);
+  const [employees, setEmployees] = useState(mockEmployees);
+  const [areEmployeesLoading, setAreEmployeesLoading] = useState(false);
 
 
   const handleScan = async () => {
-    if (areEmployeesLoading || !employees || employees.length === 0 || !firestore) {
+    if (areEmployeesLoading || !employees || employees.length === 0) {
       toast({ variant: "destructive", title: "System Not Ready", description: "Employee data is not loaded yet. Please wait." });
       return;
     }
@@ -31,72 +30,66 @@ function AuthPageContent() {
     setIsAuthenticated(false);
     setAuthenticatedEmployee(null);
 
+    // Simulate scanning delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
     // In a real scenario, you'd get the employeeId from the biometric scanner API.
-    // Here, we simulate by picking a random employee.
-    const randomEmployee = employees[Math.floor(Math.random() * employees.length)];
+    // Here, we simulate by picking a random employee who has a ticket balance.
+    const eligibleEmployees = employees.filter(e => e.ticketBalance > 0);
+    if (eligibleEmployees.length === 0) {
+        setIsScanning(false);
+        toast({
+            variant: "destructive",
+            title: "Authentication Failed",
+            description: "No employees have available tickets.",
+        });
+        return;
+    }
+    
+    const randomEmployee = eligibleEmployees[Math.floor(Math.random() * eligibleEmployees.length)];
     const employeeId = randomEmployee.id;
 
     try {
-        // Use a transaction to ensure atomic read/write of ticket balance and record creation
-        await runTransaction(firestore, async (transaction) => {
-            const employeeDocRef = doc(firestore, "employees", employeeId);
-            const employeeDoc = await transaction.get(employeeDocRef);
-
-            if (!employeeDoc.exists()) {
-                throw new Error("Employee not found in database.");
+        // Simulate a transaction: decrement ticket and create record
+        let updatedEmployee: Employee | null = null;
+        setEmployees(prev => prev.map(emp => {
+            if (emp.id === employeeId) {
+                updatedEmployee = { ...emp, ticketBalance: emp.ticketBalance - 1 };
+                return updatedEmployee;
             }
+            return emp;
+        }));
 
-            const currentBalance = employeeDoc.data().ticketBalance;
+        if (!updatedEmployee) {
+            throw new Error("Failed to find and update employee locally.");
+        }
 
-            if (currentBalance <= 0) {
-                throw new Error(`${employeeDoc.data().name} has no available tickets.`);
-            }
+        const ticketId = `TICKET-${Date.now()}`;
 
-            // 1. Decrement ticket balance
-            const newBalance = currentBalance - 1;
-            transaction.update(employeeDocRef, { ticketBalance: newBalance });
+        setIsScanning(false);
+        setIsAuthenticated(true);
+        setAuthenticatedEmployee(updatedEmployee);
 
-            // 2. Create a new feeding record
-            const feedingRecordRef = doc(collection(firestore, "feedingRecords"));
-            transaction.set(feedingRecordRef, {
-                employeeId: employeeId,
-                employeeName: employeeDoc.data().name,
-                department: employeeDoc.data().department,
-                timestamp: serverTimestamp(),
-            });
-            
-            // This data is passed to the next page
-            return {
-                employeeData: employeeDoc.data() as Employee,
-                ticketId: feedingRecordRef.id,
-            };
-        }).then(result => {
-             // This block runs if the transaction was successful
-            setIsScanning(false);
-            setIsAuthenticated(true);
-            setAuthenticatedEmployee({ ...result.employeeData, id: employeeId });
-
-            toast({
-                title: "Authentication Successful",
-                description: `Welcome, ${result.employeeData.name}. Generating your ticket...`,
-            });
-             
-            const ticketDataForPage = {
-                ticketId: result.ticketId,
-                employeeName: result.employeeData.name,
-                department: result.employeeData.department,
-                timestamp: new Date().toISOString(), // Use current client time for immediate display
-            };
-
-            const params = new URLSearchParams({
-                ticket: JSON.stringify(ticketDataForPage),
-            });
-            router.push(`/ticket?${params.toString()}`);
+        toast({
+            title: "Authentication Successful",
+            description: `Welcome, ${updatedEmployee.name}. Generating your ticket...`,
         });
+            
+        const ticketDataForPage = {
+            ticketId: ticketId,
+            employeeName: updatedEmployee.name,
+            department: updatedEmployee.department,
+            timestamp: new Date().toISOString(), // Use current client time for immediate display
+        };
+
+        const params = new URLSearchParams({
+            ticket: JSON.stringify(ticketDataForPage),
+        });
+        router.push(`/ticket?${params.toString()}`);
 
     } catch (error: any) {
         setIsScanning(false);
-        console.error("Transaction failed: ", error);
+        console.error("Local transaction failed: ", error);
         toast({
             variant: "destructive",
             title: "Authentication Failed",

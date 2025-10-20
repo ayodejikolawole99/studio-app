@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -33,8 +34,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useCollection, useMemoFirebase, setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { mockEmployees } from '@/lib/data';
 
 
 export default function StaffList() {
@@ -42,10 +42,10 @@ export default function StaffList() {
   const [isEditOpen, setEditOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const { toast } = useToast();
-  const firestore = useFirestore();
-
-  const employeesRef = useMemoFirebase(() => firestore ? collection(firestore, 'employees') : null, [firestore]);
-  const { data: employees, isLoading } = useCollection<Employee>(employeesRef);
+  
+  // Use local mock data
+  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
+  const [isLoading, setIsLoading] = useState(false);
 
 
   const filteredEmployees = useMemo(() => {
@@ -68,24 +68,29 @@ export default function StaffList() {
   };
   
   const handleDelete = (employeeId: string) => {
-    if (!firestore) return;
-    const docRef = doc(firestore, 'employees', employeeId);
-    deleteDocumentNonBlocking(docRef);
-    toast({ title: 'Success', description: 'Employee has been deleted.'});
+    setEmployees(prev => prev.filter(emp => emp.id !== employeeId));
+    toast({ title: 'Success', description: 'Employee has been deleted from local view.'});
   };
 
   const handleSave = (employeeData: Employee, isNew: boolean) => {
-    if (!firestore) return;
-
-    // The document ID is the employee ID
-    const docRef = doc(firestore, 'employees', employeeData.id);
-    
-    // For a new employee, we set the initial data. For an existing one, we merge to avoid overwriting fields.
-    setDocumentNonBlocking(docRef, employeeData, { merge: !isNew });
+    if (isNew) {
+      // Check if employee ID already exists
+      if (employees.some(e => e.id === employeeData.id)) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Employee with this ID already exists.",
+        });
+        return;
+      }
+      setEmployees(prev => [employeeData, ...prev]);
+    } else {
+      setEmployees(prev => prev.map(emp => emp.id === employeeData.id ? employeeData : emp));
+    }
 
     toast({
         title: "Success",
-        description: `Employee ${isNew ? 'added' : 'updated'} successfully.`,
+        description: `Employee ${isNew ? 'added' : 'updated'} in local view. Changes are not saved.`,
     });
   };
 

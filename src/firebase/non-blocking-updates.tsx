@@ -1,3 +1,4 @@
+
 'use client';
     
 import {
@@ -15,18 +16,10 @@ import {FirestorePermissionError} from '@/firebase/errors';
 /**
  * Initiates a setDoc operation for a document reference.
  * Does NOT await the write operation internally.
+ * This is a mock function and does not perform any real database operation.
  */
 export function setDocumentNonBlocking(docRef: DocumentReference, data: any, options: SetOptions) {
-  setDoc(docRef, data, options).catch(error => {
-    errorEmitter.emit(
-      'permission-error',
-      new FirestorePermissionError({
-        path: docRef.path,
-        operation: 'write', // or 'create'/'update' based on options
-        requestResourceData: data,
-      })
-    )
-  })
+  console.log(`[Mock] Would set document at ${docRef.path}`);
   // Execution continues immediately
 }
 
@@ -34,56 +27,29 @@ export function setDocumentNonBlocking(docRef: DocumentReference, data: any, opt
 /**
  * Initiates an addDoc operation for a collection reference.
  * Does NOT await the write operation internally.
- * Returns the Promise for the new doc ref, but typically not awaited by caller.
+ * This is a mock function and does not perform any real database operation.
  */
 export function addDocumentNonBlocking(colRef: CollectionReference, data: any) {
-  const promise = addDoc(colRef, data)
-    .catch(error => {
-      errorEmitter.emit(
-        'permission-error',
-        new FirestorePermissionError({
-          path: colRef.path,
-          operation: 'create',
-          requestResourceData: data,
-        })
-      )
-    });
-  return promise;
+  console.log(`[Mock] Would add document to ${colRef.path}`);
+  return Promise.resolve({ id: `MOCK_ID_${Date.now()}` } as DocumentReference);
 }
 
 
 /**
  * Initiates an updateDoc operation for a document reference.
  * Does NOT await the write operation internally.
+ * This is a mock function and does not perform any real database operation.
  */
 export function updateDocumentNonBlocking(docRef: DocumentReference, data: any) {
-  updateDoc(docRef, data)
-    .catch(error => {
-      errorEmitter.emit(
-        'permission-error',
-        new FirestorePermissionError({
-          path: docRef.path,
-          operation: 'update',
-          requestResourceData: data,
-        })
-      )
-    });
+  console.log(`[Mock] Would update document at ${docRef.path}`);
 }
 
 
 /**
  * Initiates a deleteDoc operation for a document reference.
  * Does NOT await the write operation internally.
+ * This is a mock function and does not perform any real database operation.
  */
 export function deleteDocumentNonBlocking(docRef: DocumentReference) {
-  deleteDoc(docRef)
-    .catch(error => {
-      errorEmitter.emit(
-        'permission-error',
-        new FirestorePermissionError({
-          path: docRef.path,
-          operation: 'delete',
-        })
-      )
-    });
+  console.log(`[Mock] Would delete document at ${docRef.path}`);
 }

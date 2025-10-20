@@ -1,9 +1,8 @@
+
 'use client';
-import { createContext, ReactNode, useContext, useMemo } from 'react';
+import { createContext, ReactNode, useContext, useState, useMemo } from 'react';
 import type { FeedingRecord } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { collection, query, orderBy, limit, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { mockFeedingRecords } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 
 interface FeedingDataContextType {
@@ -16,40 +15,30 @@ export const FeedingDataContext = createContext<FeedingDataContextType | undefin
 
 export const FeedingDataProvider = ({ children }: { children: ReactNode }) => {
     const { toast } = useToast();
-    const firestore = useFirestore();
+    
+    const [feedingRecords, setFeedingRecords] = useState<FeedingRecord[]>(mockFeedingRecords);
+    const [isLoading, setIsLoading] = useState(false);
 
-    const feedingRecordsRef = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'feedingRecords'), orderBy('timestamp', 'desc'), limit(100));
-    }, [firestore]);
-
-    const { data: feedingRecords, isLoading } = useCollection<FeedingRecord>(feedingRecordsRef);
-
-    // This function is now for testing/demo purposes.
+    // This function is for testing/demo purposes.
     const addMockRecord = () => {
-        if (!firestore) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Database not available.' });
-            return;
-        }
-
-        const mockData = {
+        const newRecord: FeedingRecord = {
+            id: `MOCK-${Date.now()}`,
             employeeId: `E-MOCK-${Math.floor(Math.random() * 100)}`,
             employeeName: "Mock User",
             department: "Testing",
-            timestamp: serverTimestamp(),
+            timestamp: new Date(),
         };
 
-        const recordsColRef = collection(firestore, 'feedingRecords');
-        addDocumentNonBlocking(recordsColRef, mockData);
+        setFeedingRecords(prev => [newRecord, ...prev]);
 
-        toast({ title: 'Success', description: 'Mock feeding record added to Firestore.' });
+        toast({ title: 'Success', description: 'Mock feeding record added locally.' });
     };
-
+    
     const recordsWithDate = useMemo(() => {
         if (!feedingRecords) return [];
         return feedingRecords.map(r => ({
             ...r,
-            timestamp: (r.timestamp as Timestamp).toDate(),
+            timestamp: new Date(r.timestamp), // Ensure timestamp is a Date object
         }));
     }, [feedingRecords]);
     
