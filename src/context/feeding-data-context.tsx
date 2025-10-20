@@ -1,12 +1,9 @@
 
 'use client';
-import { createContext, ReactNode, useContext, useState } from 'react';
+import { createContext, ReactNode, useContext, useState, useEffect } from 'react';
 import type { FeedingRecord, Employee } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { collection } from 'firebase/firestore';
-
+import { employees as mockEmployees } from '@/lib/data';
 
 interface FeedingDataContextType {
     feedingRecords: FeedingRecord[];
@@ -18,43 +15,45 @@ export const FeedingDataContext = createContext<FeedingDataContextType | undefin
 
 export const FeedingDataProvider = ({ children }: { children: ReactNode }) => {
     const { toast } = useToast();
-    const firestore = useFirestore();
-    
-    const employeesCollection = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return collection(firestore, 'employees');
-    }, [firestore]);
-    const { data: employees } = useCollection<Employee>(employeesCollection);
+    const [feedingRecords, setFeedingRecords] = useState<FeedingRecord[]>([]);
+    const [employees] = useState<Employee[]>(mockEmployees);
+    const [isLoading, setIsLoading] = useState(true);
 
-    const feedingRecordsCollection = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return collection(firestore, 'feedingRecords');
-    }, [firestore]);
-    const { data: feedingRecords, isLoading } = useCollection<FeedingRecord>(feedingRecordsCollection);
+    useEffect(() => {
+        // Simulate fetching feeding records
+        setIsLoading(true);
+        setTimeout(() => {
+            setFeedingRecords([
+              { id: 'FR-001', employeeId: 'E-001', employeeName: 'Alice Johnson', department: 'Production', timestamp: new Date(Date.now() - 1000 * 60 * 5) },
+              { id: 'FR-002', employeeId: 'E-003', employeeName: 'Charlie Brown', department: 'Production', timestamp: new Date(Date.now() - 1000 * 60 * 15) },
+            ]);
+            setIsLoading(false);
+        }, 500);
+    }, []);
 
 
     const addMockRecord = () => {
-        if (!employees || employees.length === 0 || !firestore) {
+        if (!employees || employees.length === 0) {
             toast({ variant: 'destructive', title: 'Error', description: 'Cannot add mock record, employee data not available.' });
             return;
         };
 
         const randomEmployee = employees[Math.floor(Math.random() * employees.length)];
-        const newRecord: Omit<FeedingRecord, 'id'> = {
+        const newRecord: FeedingRecord = {
+            id: `FR-${Date.now()}`,
             employeeId: randomEmployee.id,
             employeeName: randomEmployee.name,
             department: randomEmployee.department,
             timestamp: new Date(),
         };
 
-        const feedingRecordsColRef = collection(firestore, 'feedingRecords');
-        addDocumentNonBlocking(feedingRecordsColRef, newRecord);
+        setFeedingRecords(prev => [newRecord, ...prev]);
 
-        toast({ title: 'Success', description: 'Mock feeding record added.'});
+        toast({ title: 'Success (Local)', description: 'Mock feeding record added. (This is not saved).' });
     };
 
     return (
-        <FeedingDataContext.Provider value={{ feedingRecords: feedingRecords || [], addMockRecord, isLoading }}>
+        <FeedingDataContext.Provider value={{ feedingRecords, addMockRecord, isLoading }}>
             {children}
         </FeedingDataContext.Provider>
     );

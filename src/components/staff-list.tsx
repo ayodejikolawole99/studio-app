@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -34,9 +34,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
-import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { employees as mockEmployees } from '@/lib/data';
 
 
 export default function StaffList() {
@@ -44,13 +42,18 @@ export default function StaffList() {
   const [isEditOpen, setEditOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const { toast } = useToast();
-  const firestore = useFirestore();
+  
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const employeesCollection = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'employees');
-  }, [firestore]);
-  const { data: employees, isLoading } = useCollection<Employee>(employeesCollection);
+  useEffect(() => {
+    // Simulate fetching data from a local source
+    setIsLoading(true);
+    setTimeout(() => {
+        setEmployees(mockEmployees);
+        setIsLoading(false);
+    }, 500);
+  }, []);
 
   const filteredEmployees = useMemo(() => {
       if (!employees) return [];
@@ -72,20 +75,15 @@ export default function StaffList() {
   };
   
   const handleDelete = (employeeId: string) => {
-    if (!firestore) return;
-    const docRef = doc(firestore, 'employees', employeeId);
-    deleteDocumentNonBlocking(docRef);
-    toast({ title: 'Success', description: 'Employee has been deleted.'});
+    setEmployees(prev => prev.filter(emp => emp.id !== employeeId));
+    toast({ title: 'Success (Local)', description: 'Employee has been deleted. (This is not saved).'});
   };
 
   const handleSave = (employeeData: Employee, isNew: boolean) => {
-    if (!firestore) return;
-    const docRef = doc(firestore, 'employees', employeeData.id);
-
     if (isNew) {
-      setDocumentNonBlocking(docRef, { ...employeeData, ticketBalance: employeeData.ticketBalance || 0 }, {});
+        setEmployees(prev => [...prev, { ...employeeData, ticketBalance: 0 }]);
     } else {
-      setDocumentNonBlocking(docRef, employeeData, { merge: true });
+        setEmployees(prev => prev.map(emp => emp.id === employeeData.id ? employeeData : emp));
     }
   };
 
