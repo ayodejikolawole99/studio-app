@@ -16,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Search } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Search, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -34,17 +34,26 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
-import { employees as mockEmployees } from '@/lib/data';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
+import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 
 export default function StaffList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditOpen, setEditOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
   const { toast } = useToast();
+  const firestore = useFirestore();
+
+  const employeesCollection = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'employees');
+  }, [firestore]);
+  const { data: employees, isLoading } = useCollection<Employee>(employeesCollection);
 
   const filteredEmployees = useMemo(() => {
+      if (!employees) return [];
       return employees.filter((employee) =>
           employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           employee.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -63,19 +72,20 @@ export default function StaffList() {
   };
   
   const handleDelete = (employeeId: string) => {
-    setEmployees(prev => prev.filter(e => e.id !== employeeId));
-    toast({ title: 'Success', description: 'Employee removed from the list.'});
+    if (!firestore) return;
+    const docRef = doc(firestore, 'employees', employeeId);
+    deleteDocumentNonBlocking(docRef);
+    toast({ title: 'Success', description: 'Employee has been deleted.'});
   };
 
   const handleSave = (employeeData: Employee, isNew: boolean) => {
+    if (!firestore) return;
+    const docRef = doc(firestore, 'employees', employeeData.id);
+
     if (isNew) {
-      if (employees.some(e => e.id === employeeData.id)) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Employee ID must be unique.' });
-        return;
-      }
-      setEmployees(prev => [...prev, { ...employeeData, ticketBalance: employeeData.ticketBalance || 0 }]);
+      setDocumentNonBlocking(docRef, { ...employeeData, ticketBalance: employeeData.ticketBalance || 0 }, {});
     } else {
-      setEmployees(prev => prev.map(e => e.id === employeeData.id ? employeeData : e));
+      setDocumentNonBlocking(docRef, employeeData, { merge: true });
     }
   };
 
@@ -103,73 +113,80 @@ export default function StaffList() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Employee Name</TableHead>
-                <TableHead>ID</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Ticket Balance</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredEmployees && filteredEmployees.map((employee) => (
-                <TableRow key={employee.id}>
-                  <TableCell>
-                    <span className="font-medium">{employee.name}</span>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{employee.id}</TableCell>
-                  <TableCell>{employee.department}</TableCell>
-                  <TableCell className="font-medium">{employee.ticketBalance || 0}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal />
-                          <span className="sr-only">Actions</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEdit(employee)}>
-                          Edit
-                        </DropdownMenuItem>
-                        
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                              Delete
-                            </DropdownMenuItem>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the
-                                employee account and remove their data from our servers.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDelete(employee.id)}>Continue</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          {isLoading ? (
+            <div className="flex h-64 w-full items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="ml-4 text-muted-foreground">Loading staff...</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Employee Name</TableHead>
+                  <TableHead>ID</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Ticket Balance</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-               {(!filteredEmployees || filteredEmployees.length === 0) && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
-                      No staff members found.
+              </TableHeader>
+              <TableBody>
+                {filteredEmployees && filteredEmployees.map((employee) => (
+                  <TableRow key={employee.id}>
+                    <TableCell>
+                      <span className="font-medium">{employee.name}</span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{employee.id}</TableCell>
+                    <TableCell>{employee.department}</TableCell>
+                    <TableCell className="font-medium">{employee.ticketBalance || 0}</TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal />
+                            <span className="sr-only">Actions</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(employee)}>
+                            Edit
+                          </DropdownMenuItem>
+                          
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                Delete
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This action cannot be undone. This will permanently delete the
+                                  employee account and remove their data from our servers.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDelete(employee.id)}>Continue</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                )}
-            </TableBody>
-          </Table>
+                ))}
+                {(!filteredEmployees || filteredEmployees.length === 0) && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center">
+                        No staff members found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
       <StaffEditDialog 

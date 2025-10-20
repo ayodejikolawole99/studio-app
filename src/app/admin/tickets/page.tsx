@@ -6,11 +6,22 @@ import type { Employee } from '@/lib/types';
 import IndividualTicketControl from '@/components/individual-ticket-control';
 import BulkTicketControl from '@/components/bulk-ticket-control';
 import { useToast } from '@/hooks/use-toast';
-import { employees as mockEmployees } from '@/lib/data';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
+import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { Loader2 } from 'lucide-react';
+
 
 export default function TicketsPage() {
   const { toast } = useToast();
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
+  const firestore = useFirestore();
+
+  const employeesCollection = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'employees');
+  }, [firestore]);
+  
+  const { data: employees, isLoading: areEmployeesLoading } = useCollection<Employee>(employeesCollection);
 
   const departments = useMemo(() => {
     if (!employees) return [];
@@ -18,49 +29,49 @@ export default function TicketsPage() {
   }, [employees]);
 
   const handleIndividualUpdate = (employeeId: string, amount: number) => {
-    setEmployees(prevEmployees => {
-      const updatedEmployees = prevEmployees.map(emp => {
-        if (emp.id === employeeId) {
-          const newBalance = Math.max(0, (emp.ticketBalance || 0) + amount);
-          return { ...emp, ticketBalance: newBalance };
-        }
-        return emp;
-      });
+    if (!employees || !firestore) return;
+    
+    const employee = employees.find(e => e.id === employeeId);
+    if (!employee) return;
 
-      const employee = updatedEmployees.find(e => e.id === employeeId);
-      toast({
-        title: 'Success',
-        description: `Ticket balance updated for ${employee?.name}. New balance: ${employee?.ticketBalance}`
-      });
+    const newBalance = Math.max(0, (employee.ticketBalance || 0) + amount);
+    const employeeDocRef = doc(firestore, 'employees', employeeId);
+    
+    updateDocumentNonBlocking(employeeDocRef, { ticketBalance: newBalance });
 
-      return updatedEmployees;
+    toast({
+      title: 'Success',
+      description: `Ticket balance update sent for ${employee?.name}. New balance will be ${newBalance}.`
     });
   };
   
   const handleBulkUpdate = (department: string, amount: number) => {
-    setEmployees(prevEmployees => {
-      const employeesToUpdate = department === 'all'
-        ? prevEmployees
-        : prevEmployees.filter(emp => emp.department === department);
-      
-      const updatedIds = new Set(employeesToUpdate.map(e => e.id));
+    if (!employees || !firestore) return;
 
-      const updatedEmployees = prevEmployees.map(emp => {
-        if (updatedIds.has(emp.id)) {
-           const newBalance = Math.max(0, (emp.ticketBalance || 0) + amount);
-           return { ...emp, ticketBalance: newBalance };
-        }
-        return emp;
-      });
+    const employeesToUpdate = department === 'all'
+        ? employees
+        : employees.filter(emp => emp.department === department);
 
-      toast({
-        title: 'Success',
-        description: `Ticket balance updates applied for ${department === 'all' ? 'all employees' : `the ${department} department`}.`
-      });
-
-      return updatedEmployees;
+    employeesToUpdate.forEach(employee => {
+        const newBalance = Math.max(0, (employee.ticketBalance || 0) + amount);
+        const employeeDocRef = doc(firestore, 'employees', employee.id);
+        updateDocumentNonBlocking(employeeDocRef, { ticketBalance: newBalance });
+    });
+    
+    toast({
+      title: 'Success',
+      description: `Ticket balance updates applied for ${department === 'all' ? 'all employees' : `the ${department} department`}.`
     });
   };
+
+  if (areEmployeesLoading) {
+    return (
+        <div className="flex h-64 w-full items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-4 text-muted-foreground">Loading employee data...</p>
+        </div>
+    );
+  }
 
   return (
     <>

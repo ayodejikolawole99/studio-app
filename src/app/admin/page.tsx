@@ -10,6 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Ticket, Users, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FeedingDataProvider, useFeedingData } from '@/context/feeding-data-context';
+import { useFirestore } from '@/firebase';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { collection } from 'firebase/firestore';
 
 const StatCard = ({ title, value, icon, isLoading }: { title: string, value: string | number, icon: React.ReactNode, isLoading?: boolean }) => (
     <Card>
@@ -28,6 +31,7 @@ function DashboardContent() {
   const [isAnalyzing, startAnalysisTransition] = useTransition();
   const { toast } = useToast();
   const { feedingRecords, addMockRecord, isLoading } = useFeedingData();
+  const firestore = useFirestore();
 
   const handleAnalysis = () => {
     if(!feedingRecords || feedingRecords.length === 0){
@@ -58,8 +62,14 @@ function DashboardContent() {
     });
   };
 
+  const handleAddMockRecord = () => {
+    addMockRecord();
+    toast({ title: 'Success', description: 'Mock feeding record added.'});
+  }
+
   const sortedRecords = useMemo(() => {
     if (!feedingRecords) return [];
+    // Firestore timestamps need to be converted to JS Dates
     const recordsWithDates = feedingRecords.map(r => ({...r, timestamp: (r.timestamp as any).toDate ? (r.timestamp as any).toDate() : new Date(r.timestamp) }));
     return recordsWithDates.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }, [feedingRecords]);
@@ -106,7 +116,7 @@ function DashboardContent() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8">
         <div className="lg:col-span-2 space-y-4">
            <FeedingHistory records={sortedRecords.slice(0,10) || []} />
-           <Button onClick={addMockRecord} className="w-full">Add Mock Printing Record</Button>
+           <Button onClick={handleAddMockRecord} className="w-full">Add Mock Printing Record</Button>
         </div>
 
         <div className="lg:col-span-3">
