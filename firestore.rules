@@ -2,40 +2,34 @@
  * @fileoverview Firestore Security Rules for the Canteen System.
  *
  * Core Philosophy:
- * This ruleset prioritizes security and data integrity, focusing on controlling access to employee records and feeding records.
- * Data access is generally restricted, and write operations require specific conditions to be met.
+ * This ruleset prioritizes security and data access control. It restricts listing of employees entirely to prevent unauthorized data access.
+ * Feeding records are publicly readable to facilitate reporting and display, but write access is denied in the current prototype.
  *
  * Data Structure:
  * - /employees/{employeeId}: Stores employee profiles, with the employeeId used as the document ID.
- * - /feedingRecords/{recordId}: Stores records of meal consumption events.
+ * - /feedingRecords/{recordId}: Stores a log of feeding events.
  *
  * Key Security Decisions:
- * - Employees collection is not listable.
- * - Feeding records are publicly readable, but creation and modification are restricted to authorized roles.
- * - The schema is not strictly enforced to allow for rapid iteration, but key fields required for authorization are validated on write.
- *
- * Denormalization for Authorization:
- *  N/A in this simplified model
- *
- * Structural Segregation:
- *  N/A in this simplified model
+ * - Employee data is NOT listable. This prevents unauthorized enumeration of employee records.
+ * - Anonymous authentication is enabled; thus, all read/write rules must account for unauthenticated users. In this prototype, only read access to feeding records is granted.
+ * - Write access to feedingRecords is currently denied to all users. This should be changed in a real implementation.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Protects the employee profiles. Only authenticated users can read, but no listing.
+     * @description Controls access to the /employees collection.
      * @path /employees/{employeeId}
-     * @allow (get) Authenticated user can get any profile.
-     * @deny (list) No one can list all profiles.
-     * @allow (create) No one can create a profile.
-     * @allow (update) No one can update a profile.
-     * @allow (delete) No one can delete a profile.
-     * @principle Restricts access to employee data.
+     * @allow (create) - DENIED: No one can create employee records directly through Firestore.
+     * @allow (get) - DENIED: No one can get employee records directly through Firestore.
+     * @allow (list) - DENIED: No one can list employee records.
+     * @allow (update) - DENIED: No one can update employee records directly through Firestore.
+     * @allow (delete) - DENIED: No one can delete employee records directly through Firestore.
+     * @principle Prevents unauthorized access to employee data.
      */
     match /employees/{employeeId} {
-      allow get: if isSignedIn();
+      allow get: if false;
       allow list: if false;
       allow create: if false;
       allow update: if false;
@@ -43,20 +37,21 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows public read access to feeding records, but restricts write access.
+     * @description Controls access to the /feedingRecords collection.
      * @path /feedingRecords/{recordId}
-     * @allow (get, list) Any user can read feeding records.
-     * @deny (create, update, delete) Only authorized users can create, update or delete records (TODO: implement auth).
-     * @principle Allows public data for reporting while restricting modification to authorized users.
+     * @allow (get) - Public read access is allowed.
+     * @allow (list) - Public read access is allowed.
+     * @allow (create) - DENIED: No one can create feeding records through Firestore.
+     * @allow (update) - DENIED: No one can update feeding records through Firestore.
+     * @allow (delete) - DENIED: No one can delete feeding records through Firestore.
+     * @principle Allows public read access for reporting purposes.
      */
     match /feedingRecords/{recordId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add authorization logic for creating/modifying feeding records.
-    }
-
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
+      allow get: if true;
+      allow list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }
