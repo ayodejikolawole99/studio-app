@@ -31,7 +31,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
 
@@ -115,14 +114,17 @@ export default function StaffList() {
   };
 
   const onSuccessfulSave = (savedEmployee: Employee) => {
+      // Find if we are updating an existing employee or adding a new one
       const existingIndex = employees.findIndex(e => e.id === savedEmployee.id);
+      
       if (existingIndex > -1) {
-        // Update
+        // Update: replace the old employee data with the new one
         const newEmployees = [...employees];
-        newEmployees[existingIndex] = savedEmployee;
+        // The API returns the ID, but the savedEmployee from the dialog form has all the updated fields
+        newEmployees[existingIndex] = { ...employees[existingIndex], ...savedEmployee };
         setEmployees(newEmployees);
       } else {
-        // Create - add to list and re-sort
+        // Create: add the new employee to the list and re-sort
         setEmployees([...employees, savedEmployee].sort((a, b) => a.name.localeCompare(b.name)));
       }
       setEditOpen(false);
@@ -140,11 +142,15 @@ export default function StaffList() {
               </Button>
           </div>
           <div className="flex gap-2 mt-4">
-            <Input
-              placeholder="Search by name or ID..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            <div className="relative w-full">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8"
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent>

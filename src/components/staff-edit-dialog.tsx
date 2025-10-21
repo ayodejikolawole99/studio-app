@@ -84,24 +84,20 @@ export function StaffEditDialog({
         let result;
 
         try {
-            if (isNewEmployee) {
-                // CREATE operation
-                const newEmployeeData = { name, department, employeeId, biometricTemplate };
-                response = await fetch('/api/employees', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(newEmployeeData),
-                });
-            } else {
-                // UPDATE operation
-                const updatedEmployeeData: Partial<Employee> = { name, department, biometricTemplate };
-                response = await fetch(`/api/employees/${employeeId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updatedEmployeeData),
-                });
-            }
+            const endpoint = isNewEmployee ? '/api/employees' : `/api/employees/${employeeId}`;
+            const method = isNewEmployee ? 'POST' : 'PUT';
+            
+            const payload = isNewEmployee
+                ? { name, department, employeeId, biometricTemplate }
+                : { name, department, biometricTemplate };
 
+
+            response = await fetch(endpoint, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            
             result = await response.json();
 
             if (response.ok) {
@@ -110,16 +106,14 @@ export function StaffEditDialog({
                     description: `Employee ${isNewEmployee ? 'added' : 'updated'} successfully.`,
                 });
                 
-                // Construct the full employee object to pass back to the parent
+                // Construct the full employee object to pass back to the parent for UI update
                 const savedEmployee: Employee = {
-                  ...(employee || {}), // Start with original data
+                  ...(employee || {}), // Start with original data to preserve fields like ticketBalance
                   id: result.id,
-                  employeeId: result.id,
+                  employeeId: result.id, // For new employees, API returns the ID
                   name,
                   department,
                   biometricTemplate,
-                  // ticketBalance will be out of sync here, but the parent's useCollection will fix it.
-                  ticketBalance: employee?.ticketBalance || 0 
                 };
                 
                 onSaveSuccess(savedEmployee);
@@ -134,11 +128,20 @@ export function StaffEditDialog({
 
         } catch (error) {
             console.error("[StaffEditDialog] API request failed: ", error);
-            toast({ 
-                variant: 'destructive', 
-                title: 'Network Error', 
-                description: 'Could not connect to the server. Please try again.'
-            });
+            // This catches network errors, or if the response isn't valid JSON
+            if (error instanceof SyntaxError) {
+                 toast({ 
+                    variant: 'destructive', 
+                    title: 'Server Error', 
+                    description: 'Received an invalid response from the server.'
+                });
+            } else {
+                toast({ 
+                    variant: 'destructive', 
+                    title: 'Network Error', 
+                    description: 'Could not connect to the server. Please try again.'
+                });
+            }
         }
     });
   };
