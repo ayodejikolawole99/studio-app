@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/firebaseAdmin";
-import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // Schema for creating an employee. ticketBalance is handled server-side.
 const CreateEmployeeSchema = z.object({
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     const newEmployeePayload = {
       ...validatedData,
       ticketBalance: 0,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     };
 
     await ref.set(newEmployeePayload);

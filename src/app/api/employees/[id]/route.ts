@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/firebaseAdmin";
-import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // Schema for updating an employee. All fields are optional.
 const UpdateEmployeeSchema = z.object({
@@ -41,7 +41,7 @@ export async function PUT(
     
     const updatePayload = {
       ...validatedData,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     };
 
     await ref.update(updatePayload);
