@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useMemo } from 'react';
 import {
   Table,
   TableBody,
@@ -51,16 +51,25 @@ export default function StaffList() {
       setError(null);
       try {
         const res = await fetch("/api/employees/list");
+        if (!res.ok) {
+           const errorData = await res.json().catch(() => ({ error: 'Failed to fetch employees. The API route might be missing or crashing.' }));
+           throw new Error(errorData.error);
+        }
+        
         const data = await res.json();
 
-        if (res.ok) {
+        if (data.success) {
           setEmployees(data.employees);
         } else {
-          throw new Error(data.error || "Failed to fetch employees. You may not have permission.");
+          throw new Error(data.error || "An unknown error occurred while fetching employees.");
         }
       } catch (err: any) {
-        setError(err.message);
         console.error("Error fetching employees:", err);
+        if (err.message.includes("JSON")) {
+            setError("The server returned an invalid response. The API route might be missing or failing.");
+        } else {
+            setError(err.message);
+        }
       } finally {
         setAreEmployeesLoading(false);
       }
@@ -70,10 +79,10 @@ export default function StaffList() {
   }, []);
 
 
-  const filteredEmployees = employees?.filter(employee =>
+  const filteredEmployees = useMemo(() => employees?.filter(employee =>
     employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     employee.employeeId.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  ) || [], [employees, searchTerm]);
 
   const handleAddNew = () => {
     const newEmployee: Employee = {
@@ -92,17 +101,17 @@ export default function StaffList() {
     setEditOpen(true);
   };
   
-  const handleDelete = (employeeId: string) => {
+  const handleDelete = (employee: Employee) => {
     startDeleteTransition(async () => {
       try {
-        const response = await fetch(`/api/employees/${employeeId}`, {
+        const response = await fetch(`/api/employees/${employee.id}`, {
           method: 'DELETE',
         });
         const result = await response.json();
 
         if (response.ok) {
-          toast({ title: 'Success', description: 'Employee has been deleted.' });
-          setEmployees(currentEmployees => currentEmployees.filter(emp => emp.id !== employeeId));
+          toast({ title: 'Success', description: `Employee '${employee.name}' has been deleted.` });
+          setEmployees(currentEmployees => currentEmployees.filter(emp => emp.id !== employee.id));
         } else {
           toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not delete employee.' });
         }
@@ -114,19 +123,18 @@ export default function StaffList() {
   };
 
   const onSuccessfulSave = (savedEmployee: Employee) => {
-      // Find if we are updating an existing employee or adding a new one
-      const existingIndex = employees.findIndex(e => e.id === savedEmployee.id);
-      
-      if (existingIndex > -1) {
-        // Update: replace the old employee data with the new one
-        const newEmployees = [...employees];
-        // The API returns the ID, but the savedEmployee from the dialog form has all the updated fields
-        newEmployees[existingIndex] = { ...employees[existingIndex], ...savedEmployee };
-        setEmployees(newEmployees);
-      } else {
-        // Create: add the new employee to the list and re-sort
-        setEmployees([...employees, savedEmployee].sort((a, b) => a.name.localeCompare(b.name)));
-      }
+      setEmployees(currentEmployees => {
+        const existingIndex = currentEmployees.findIndex(e => e.id === savedEmployee.id);
+        if (existingIndex > -1) {
+            // Update
+            const newEmployees = [...currentEmployees];
+            newEmployees[existingIndex] = savedEmployee;
+            return newEmployees;
+        } else {
+            // Create
+            return [...currentEmployees, savedEmployee].sort((a, b) => a.name.localeCompare(b.name));
+        }
+      });
       setEditOpen(false);
   }
 
@@ -169,14 +177,17 @@ export default function StaffList() {
                 {areEmployeesLoading ? (
                    <TableRow>
                       <TableCell colSpan={6} className="h-24 text-center">
-                        <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                        <div className="flex justify-center items-center">
+                          <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                          <span>Loading staff data...</span>
+                        </div>
                       </TableCell>
                     </TableRow>
                 ) : error ? (
                    <TableRow>
                       <TableCell colSpan={6} className="h-24 text-center text-destructive">
                         <p className="font-bold">Failed to load staff data.</p>
-                        <p className="text-sm mt-1">{error.includes("JSON") ? "The API route might be missing or crashing." : error}</p>
+                        <p className="text-sm mt-1">{error}</p>
                       </TableCell>
                     </TableRow>
                 ) : filteredEmployees.length > 0 ? (
@@ -207,7 +218,7 @@ export default function StaffList() {
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDelete(employee.id)} className="bg-destructive hover:bg-destructive/90" disabled={isDeleting}>
+                                  <AlertDialogAction onClick={() => handleDelete(employee)} className="bg-destructive hover:bg-destructive/90" disabled={isDeleting}>
                                     {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                     Continue
                                   </AlertDialogAction>

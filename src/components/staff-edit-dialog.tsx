@@ -106,17 +106,8 @@ export function StaffEditDialog({
                     description: `Employee ${isNewEmployee ? 'added' : 'updated'} successfully.`,
                 });
                 
-                // Construct the full employee object to pass back to the parent for UI update
-                const savedEmployee: Employee = {
-                  ...(employee || {}), // Start with original data to preserve fields like ticketBalance
-                  id: result.id,
-                  employeeId: isNewEmployee ? result.id : employeeId, // API returns the ID
-                  name,
-                  department,
-                  biometricTemplate,
-                };
-                
-                onSaveSuccess(savedEmployee);
+                // The API now returns the full saved object, so we can use that directly
+                onSaveSuccess(result.employee);
             } else {
                 // Display specific error from the server
                 toast({

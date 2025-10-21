@@ -15,7 +15,7 @@ const CreateEmployeeSchema = z.object({
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log("API Route /api/employees received body:", body);
+    console.log("API Route /api/employees received POST body:", body);
 
     const validatedData = CreateEmployeeSchema.parse(body);
 
@@ -41,7 +41,10 @@ export async function POST(req: Request) {
     await ref.set(newEmployeePayload);
     console.log(`Successfully created employee ${validatedData.employeeId}`);
 
-    return NextResponse.json({ success: true, id: validatedData.employeeId });
+    // Return the full new employee object
+    const createdEmployee = { id: ref.id, ...newEmployeePayload };
+
+    return NextResponse.json({ success: true, employee: createdEmployee }, { status: 201 });
   } catch (err: any) {
     console.error("Error in /api/employees POST:", err);
 

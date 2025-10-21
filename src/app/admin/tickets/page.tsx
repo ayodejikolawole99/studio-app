@@ -8,7 +8,7 @@ import BulkTicketControl from '@/components/bulk-ticket-control';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useFirestore } from '@/firebase';
-import { collection, doc, writeBatch, getDocs, query as firestoreQuery, where, increment } from 'firebase/firestore';
+import { doc, writeBatch, getDocs, query as firestoreQuery, where, collection, increment } from 'firebase/firestore';
 
 
 export default function TicketsPage() {
@@ -27,16 +27,19 @@ export default function TicketsPage() {
       setError(null);
       try {
         const res = await fetch("/api/employees/list");
+         if (!res.ok) {
+           const errorData = await res.json().catch(() => ({ error: 'Failed to fetch employees. The API route might be missing or crashing.' }));
+           throw new Error(errorData.error);
+        }
+        
         const data = await res.json();
-
-        if (res.ok) {
+        if (data.success) {
           setEmployees(data.employees);
         } else {
-          throw new Error(data.error || "Failed to fetch employees. The API route might be missing or crashing.");
+          throw new Error(data.error || "Failed to parse employee data.");
         }
       } catch (err: any) {
         console.error("Error fetching employees:", err);
-        // More descriptive error for the UI
         if (err.message.includes("JSON")) {
             setError("The server returned an invalid response. The API route might be missing or failing.");
         } else {
@@ -53,7 +56,7 @@ export default function TicketsPage() {
 
   const departments = useMemo(() => {
     if (!employees) return [];
-    const uniqueDepartments = [...new Set(employees.map(e => e.department))];
+    const uniqueDepartments = [...new Set(employees.map(e => e.department).filter(Boolean))];
     return uniqueDepartments.sort();
   }, [employees]);
 
@@ -92,20 +95,23 @@ export default function TicketsPage() {
     
     startUpdateTransition(async () => {
       try {
-        let collectionRef = collection(firestore, "employees");
-        let q = department === 'all' ? collectionRef : firestoreQuery(collectionRef, where("department", "==", department));
+        const collectionRef = collection(firestore, "employees");
+        let q = department === 'all' 
+            ? collectionRef 
+            : firestoreQuery(collectionRef, where("department", "==", department));
         
         const querySnapshot = await getDocs(q);
         
-        if (querySnapshot.empty && department !== 'all') {
+        if (querySnapshot.empty) {
             toast({ variant: 'destructive', title: 'No Employees Found', description: `No employees found in the ${department} department.` });
             return;
         }
         
         const batch = writeBatch(firestore);
-        const updatedIds = querySnapshot.docs.map(d => d.id);
+        const updatedIds = new Set<string>();
         querySnapshot.forEach((docSnap) => {
             batch.update(docSnap.ref, { ticketBalance: increment(amount) });
+            updatedIds.add(docSnap.id);
         });
 
         await batch.commit();
@@ -115,7 +121,7 @@ export default function TicketsPage() {
             description: `Ticket balances updated for ${department === 'all' ? 'all employees' : `the ${department} department`}.`
         });
         // Optimistically update local state
-        setEmployees(emps => emps.map(e => updatedIds.includes(e.id) ? {...e, ticketBalance: (e.ticketBalance || 0) + amount} : e));
+        setEmployees(emps => emps.map(e => updatedIds.has(e.id) ? {...e, ticketBalance: (e.ticketBalance || 0) + amount} : e));
 
       } catch (e: any) {
         console.error("Error performing bulk update:", e);

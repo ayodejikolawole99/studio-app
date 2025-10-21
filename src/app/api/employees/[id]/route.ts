@@ -22,7 +22,7 @@ export async function PUT(
     }
     
     const body = await req.json();
-    console.log(`API Route /api/employees/${employeeId} received body:`, body);
+    console.log(`API Route /api/employees/${employeeId} received PUT body:`, body);
 
     const validatedData = UpdateEmployeeSchema.parse(body);
 
@@ -47,8 +47,10 @@ export async function PUT(
 
     await ref.update(updatePayload);
     console.log(`Successfully updated employee ${employeeId}`);
+    
+    const updatedDoc = await ref.get();
 
-    return NextResponse.json({ success: true, id: employeeId });
+    return NextResponse.json({ success: true, employee: { id: updatedDoc.id, ...updatedDoc.data() } });
   } catch (err: any)
   {
     console.error(`Error in /api/employees/${params.id} PUT:`, err);
