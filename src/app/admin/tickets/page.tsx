@@ -22,7 +22,7 @@ export default function TicketsPage() {
 
   useEffect(() => {
     async function fetchEmployees() {
-      if (!firestore) return; // Wait for firestore to be initialized
+      if (!firestore) return;
       setAreEmployeesLoading(true);
       setError(null);
       try {
@@ -32,11 +32,16 @@ export default function TicketsPage() {
         if (res.ok) {
           setEmployees(data.employees);
         } else {
-          throw new Error(data.error || "Failed to fetch employees. You may not have permission.");
+          throw new Error(data.error || "Failed to fetch employees. The API route might be missing or crashing.");
         }
       } catch (err: any) {
-        setError(err.message);
         console.error("Error fetching employees:", err);
+        // More descriptive error for the UI
+        if (err.message.includes("JSON")) {
+            setError("The server returned an invalid response. The API route might be missing or failing.");
+        } else {
+            setError(err.message);
+        }
       } finally {
         setAreEmployeesLoading(false);
       }
