@@ -83,13 +83,12 @@ export function StaffEditDialog({
         }
 
         if (isNewEmployee) {
-            // Use the new API route to create the employee
+            // Use the API route to create the employee
             const newEmployeeData = {
                 name,
                 department,
                 employeeId,
                 biometricTemplate: biometricTemplate,
-                ticketBalance: 0, // New employees start with 0 tickets
             };
 
             try {
