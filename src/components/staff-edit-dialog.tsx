@@ -20,17 +20,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useFirestore } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
-import { z } from 'zod';
-
-const CreateEmployeeInputSchema = z.object({
-  name: z.string(),
-  employeeId: z.string(),
-  department: z.string(),
-  ticketBalance: z.number(),
-  biometricTemplate: z.string().optional(),
-});
-
-type CreateEmployeeInput = z.infer<typeof CreateEmployeeInputSchema>;
 
 const departments = ["Production", "Logistics", "Quality Assurance", "Human Resources", "Maintenance", "IT", "Finance"];
 
@@ -93,17 +82,17 @@ export function StaffEditDialog({
             return;
         }
 
-        try {
-            if (isNewEmployee) {
-                // Use the new API route to create the employee
-                const newEmployeeData: CreateEmployeeInput = {
-                    name,
-                    department,
-                    employeeId,
-                    biometricTemplate: biometricTemplate,
-                    ticketBalance: 0,
-                };
+        if (isNewEmployee) {
+            // Use the new API route to create the employee
+            const newEmployeeData = {
+                name,
+                department,
+                employeeId,
+                biometricTemplate: biometricTemplate,
+                ticketBalance: 0, // New employees start with 0 tickets
+            };
 
+            try {
                 const response = await fetch('/api/employees', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -119,45 +108,50 @@ export function StaffEditDialog({
                     });
                     onSaveSuccess();
                 } else {
+                    // Display specific error from the server
                     toast({
                         variant: "destructive",
                         title: "Creation Failed",
-                        description: result.error || "An unknown error occurred.",
+                        description: result.error || "An unknown server error occurred.",
                     });
                 }
-            } else {
-                // Use standard client-side update for existing employees
-                 if (!firestore) {
-                    toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
-                    return;
-                }
-                const employeeRef = doc(firestore, 'employees', employeeId);
-                const updatedData: Partial<Employee> = {
-                    name,
-                    department,
-                    ...(biometricTemplate !== undefined && { biometricTemplate }),
-                };
-                updateDoc(employeeRef, updatedData)
-                .then(() => {
-                    toast({
-                        title: "Success",
-                        description: `Employee updated successfully.`,
-                    });
-                    onSaveSuccess();
-                }).catch(async (error) => {
-                     console.error("[Inspect][StaffEditDialog] Error updating employee: ", error);
-                     const permissionError = new FirestorePermissionError({
-                        path: employeeRef.path,
-                        operation: 'update',
-                        requestResourceData: updatedData,
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                    toast({ variant: 'destructive', title: 'Error', description: 'Could not update employee data.' });
+            } catch (error) {
+                console.error("[StaffEditDialog] Error calling API: ", error);
+                toast({ 
+                    variant: 'destructive', 
+                    title: 'Network Error', 
+                    description: 'Could not connect to the server to create the employee.' 
                 });
             }
-        } catch (error) {
-            console.error("[Inspect][StaffEditDialog] Error saving employee via API: ", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'A network or server error occurred.' });
+        } else {
+            // Use standard client-side update for existing employees
+             if (!firestore) {
+                toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
+                return;
+            }
+            const employeeRef = doc(firestore, 'employees', employeeId);
+            const updatedData: Partial<Employee> = {
+                name,
+                department,
+                ...(biometricTemplate !== undefined && { biometricTemplate }),
+            };
+            updateDoc(employeeRef, updatedData)
+            .then(() => {
+                toast({
+                    title: "Success",
+                    description: `Employee updated successfully.`,
+                });
+                onSaveSuccess();
+            }).catch(async (error) => {
+                 console.error("[Inspect][StaffEditDialog] Error updating employee: ", error);
+                 const permissionError = new FirestorePermissionError({
+                    path: employeeRef.path,
+                    operation: 'update',
+                    requestResourceData: updatedData,
+                });
+                errorEmitter.emit('permission-error', permissionError);
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not update employee data.' });
+            });
         }
     });
   };
