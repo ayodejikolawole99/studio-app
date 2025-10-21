@@ -17,9 +17,6 @@ import type { Employee } from '@/lib/types';
 import { Fingerprint, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFirestore } from '@/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
-import { FirestorePermissionError, errorEmitter } from '@/firebase';
 
 const departments = ["Production", "Logistics", "Quality Assurance", "Human Resources", "Maintenance", "IT", "Finance"];
 
@@ -44,7 +41,6 @@ export function StaffEditDialog({
   const [isSaving, startSaving] = useTransition();
   const [isNewEmployee, setIsNewEmployee] = useState(false);
   const { toast } = useToast();
-  const firestore = useFirestore();
 
   useEffect(() => {
     if (isOpen && employee) {
@@ -78,78 +74,64 @@ export function StaffEditDialog({
   const handleSave = () => {
      startSaving(async () => {
         if (!name || !employeeId || !department) {
-            toast({ variant: "destructive", title: "Validation Error", description: "Please fill out all fields, including Employee Number." });
+            toast({ variant: "destructive", title: "Validation Error", description: "Please fill out all required fields." });
             return;
         }
 
-        if (isNewEmployee) {
-            // Use the API route to create the employee
-            const newEmployeeData = {
-                name,
-                department,
-                employeeId,
-                biometricTemplate: biometricTemplate,
-            };
+        let response;
+        let result;
 
-            try {
-                const response = await fetch('/api/employees', {
+        try {
+            if (isNewEmployee) {
+                // CREATE operation
+                const newEmployeeData = {
+                    name,
+                    department,
+                    employeeId,
+                    biometricTemplate,
+                };
+                response = await fetch('/api/employees', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(newEmployeeData),
                 });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    toast({
-                        title: "Success",
-                        description: `Employee ${result.id} added successfully.`,
-                    });
-                    onSaveSuccess();
-                } else {
-                    // Display specific error from the server
-                    toast({
-                        variant: "destructive",
-                        title: "Creation Failed",
-                        description: result.error || "An unknown server error occurred.",
-                    });
-                }
-            } catch (error) {
-                console.error("[StaffEditDialog] Error calling API: ", error);
-                toast({ 
-                    variant: 'destructive', 
-                    title: 'Network Error', 
-                    description: 'Could not connect to the server to create the employee.' 
+            } else {
+                // UPDATE operation
+                const updatedEmployeeData = {
+                    name,
+                    department,
+                    biometricTemplate,
+                };
+                response = await fetch(`/api/employees/${employeeId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatedEmployeeData),
                 });
             }
-        } else {
-            // Use standard client-side update for existing employees
-             if (!firestore) {
-                toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
-                return;
-            }
-            const employeeRef = doc(firestore, 'employees', employeeId);
-            const updatedData: Partial<Employee> = {
-                name,
-                department,
-                ...(biometricTemplate !== undefined && { biometricTemplate }),
-            };
-            updateDoc(employeeRef, updatedData)
-            .then(() => {
+
+            result = await response.json();
+
+            if (response.ok) {
                 toast({
                     title: "Success",
-                    description: `Employee updated successfully.`,
+                    description: `Employee ${isNewEmployee ? 'added' : 'updated'} successfully.`,
                 });
                 onSaveSuccess();
-            }).catch(async (error) => {
-                 console.error("[Inspect][StaffEditDialog] Error updating employee: ", error);
-                 const permissionError = new FirestorePermissionError({
-                    path: employeeRef.path,
-                    operation: 'update',
-                    requestResourceData: updatedData,
+            } else {
+                // Display specific error from the server
+                toast({
+                    variant: "destructive",
+                    title: isNewEmployee ? "Creation Failed" : "Update Failed",
+                    description: result.error || "An unknown server error occurred.",
                 });
-                errorEmitter.emit('permission-error', permissionError);
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not update employee data.' });
+            }
+
+        } catch (error) {
+            console.error("[StaffEditDialog] API request failed: ", error);
+            toast({ 
+                variant: 'destructive', 
+                title: 'Network Error', 
+                description: 'Could not connect to the server. Please try again.'
             });
         }
     });
