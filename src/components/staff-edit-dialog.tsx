@@ -18,9 +18,22 @@ import { Fingerprint, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFirestore } from '@/firebase';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
 import { createEmployee } from '@/ai/flows/create-employee-flow';
+import { z } from 'zod';
+
+// Define the schema for the employee data input.
+const CreateEmployeeInputSchema = z.object({
+  name: z.string(),
+  employeeId: z.string(),
+  department: z.string(),
+  ticketBalance: z.number(),
+  biometricTemplate: z.string().optional(),
+});
+
+type CreateEmployeeInput = z.infer<typeof CreateEmployeeInputSchema>;
+
 
 const departments = ["Production", "Logistics", "Quality Assurance", "Human Resources", "Maintenance", "IT", "Finance"];
 
@@ -90,11 +103,11 @@ export function StaffEditDialog({
 
         try {
             if (isNewEmployee) {
-                const newEmployeeData: Omit<Employee, 'id'> = {
+                const newEmployeeData: CreateEmployeeInput = {
                     name,
                     department,
                     employeeId,
-                    biometricTemplate: biometricTemplate || '',
+                    biometricTemplate: biometricTemplate,
                     ticketBalance: 0,
                 };
                 await createEmployee(newEmployeeData);

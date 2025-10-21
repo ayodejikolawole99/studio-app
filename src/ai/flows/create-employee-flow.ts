@@ -9,10 +9,9 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { initializeFirebase } from '@/firebase/index';
 import { doc, setDoc } from 'firebase/firestore';
-import type { Employee } from '@/lib/types';
 
-// Define the schema for the employee data input.
-export const CreateEmployeeInputSchema = z.object({
+// The input schema is now defined in the client component that calls this flow.
+const CreateEmployeeInputSchema = z.object({
   name: z.string(),
   employeeId: z.string(),
   department: z.string(),
@@ -20,7 +19,7 @@ export const CreateEmployeeInputSchema = z.object({
   biometricTemplate: z.string().optional(),
 });
 
-export type CreateEmployeeInput = z.infer<typeof CreateEmployeeInputSchema>;
+type CreateEmployeeInput = z.infer<typeof CreateEmployeeInputSchema>;
 
 /**
  * A server-side function to create an employee document in Firestore.
