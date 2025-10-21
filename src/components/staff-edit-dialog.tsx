@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -24,7 +25,7 @@ interface StaffEditDialogProps {
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
   employee: Employee | null;
-  onSaveSuccess: () => void;
+  onSaveSuccess: (employee: Employee) => void;
 }
 
 export function StaffEditDialog({
@@ -51,6 +52,7 @@ export function StaffEditDialog({
       setDepartment(employee.department || '');
       setBiometricTemplate(employee.biometricTemplate);
     } else if (!isOpen) {
+      // Reset form on close
       setName('');
       setEmployeeId('');
       setDepartment('');
@@ -84,12 +86,7 @@ export function StaffEditDialog({
         try {
             if (isNewEmployee) {
                 // CREATE operation
-                const newEmployeeData = {
-                    name,
-                    department,
-                    employeeId,
-                    biometricTemplate,
-                };
+                const newEmployeeData = { name, department, employeeId, biometricTemplate };
                 response = await fetch('/api/employees', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -97,11 +94,7 @@ export function StaffEditDialog({
                 });
             } else {
                 // UPDATE operation
-                const updatedEmployeeData = {
-                    name,
-                    department,
-                    biometricTemplate,
-                };
+                const updatedEmployeeData: Partial<Employee> = { name, department, biometricTemplate };
                 response = await fetch(`/api/employees/${employeeId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
@@ -116,7 +109,20 @@ export function StaffEditDialog({
                     title: "Success",
                     description: `Employee ${isNewEmployee ? 'added' : 'updated'} successfully.`,
                 });
-                onSaveSuccess();
+                
+                // Construct the full employee object to pass back to the parent
+                const savedEmployee: Employee = {
+                  ...(employee || {}), // Start with original data
+                  id: result.id,
+                  employeeId: result.id,
+                  name,
+                  department,
+                  biometricTemplate,
+                  // ticketBalance will be out of sync here, but the parent's useCollection will fix it.
+                  ticketBalance: employee?.ticketBalance || 0 
+                };
+                
+                onSaveSuccess(savedEmployee);
             } else {
                 // Display specific error from the server
                 toast({

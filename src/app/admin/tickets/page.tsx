@@ -1,26 +1,30 @@
+
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useTransition } from 'react';
 import type { Employee } from '@/lib/types';
 import IndividualTicketControl from '@/components/individual-ticket-control';
 import BulkTicketControl from '@/components/bulk-ticket-control';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, updateDoc, writeBatch, getDocs, query as firestoreQuery, where } from 'firebase/firestore';
-import { FirestorePermissionError, errorEmitter } from '@/firebase';
+import { collection, doc, writeBatch, getDocs, query as firestoreQuery, where, increment } from 'firebase/firestore';
+
+
+// NOTE: This client-side implementation for ticket updates WILL FAIL with the new, stricter
+// security rules unless the currently authenticated user is an ADMIN. The rules prevent
+// direct client-side writes to the `employees` collection by non-admins.
+// For this to work for all admins, they must have the `admin: true` custom claim set.
 
 export default function TicketsPage() {
-  console.log('[Inspect][TicketsPage] Component rendered');
   const { toast } = useToast();
   const firestore = useFirestore();
+  const [isUpdating, startUpdateTransition] = useTransition();
 
-  console.log('[Inspect][TicketsPage] Preparing to call useCollection for employees');
   const employeesRef = useMemoFirebase(() => 
     firestore ? collection(firestore, 'employees') : null
   , [firestore]);
   const { data: employees, isLoading: areEmployeesLoading, error } = useCollection<Employee>(employeesRef);
-  console.log(`[Inspect][TicketsPage] useCollection result:`, { data: employees, isLoading: areEmployeesLoading, error });
 
 
   const departments = useMemo(() => {
@@ -30,61 +34,42 @@ export default function TicketsPage() {
   }, [employees]);
 
   const handleIndividualUpdate = (employeeId: string, amount: number) => {
-    console.log(`[Inspect][TicketsPage] handleIndividualUpdate called with:`, { employeeId, amount });
-    if (!firestore || !employees) {
-        console.error('[Inspect][TicketsPage] Firestore or employees not available for individual update.');
-        return;
-    }
-    const employee = employees.find(e => e.id === employeeId);
-    if (!employee) {
-        console.error(`[Inspect][TicketsPage] Employee with ID ${employeeId} not found.`);
-        return;
-    }
+    if (!firestore || !employees) return;
     
-    const employeeRef = doc(firestore, 'employees', employeeId);
-    const newBalance = Math.max(0, (employee.ticketBalance || 0) + amount);
-    const updateData = { ticketBalance: newBalance };
-
-    console.log(`[Inspect][TicketsPage] Updating employee ${employeeId} with new balance: ${newBalance}`);
-    
-    updateDoc(employeeRef, updateData)
-      .then(() => {
+    startUpdateTransition(async () => {
+      try {
+        const employee = employees.find(e => e.id === employeeId);
+        if (!employee) throw new Error("Employee not found");
+        
+        const employeeRef = doc(firestore, 'employees', employeeId);
+        // Using increment for atomic update
+        await writeBatch(firestore).update(employeeRef, { ticketBalance: increment(amount) }).commit();
+        
         toast({
           title: 'Update Applied',
           description: `Ticket balance for ${employee.name} updated.`
         });
-      })
-      .catch(async (serverError) => {
-        console.error('[Inspect][TicketsPage] Error updating individual ticket balance:', serverError);
-        const permissionError = new FirestorePermissionError({
-            path: employeeRef.path,
-            operation: 'update',
-            requestResourceData: updateData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
+      } catch (e: any) {
+        console.error("Error updating individual tickets:", e);
         toast({
           variant: 'destructive',
           title: 'Update Failed',
-          description: 'Could not update ticket balance. Check permissions.'
+          description: e.message || 'Could not update ticket balance. You may not have permission.'
         });
-      });
+      }
+    });
   };
   
   const handleBulkUpdate = (department: string, amount: number) => {
-    console.log(`[Inspect][TicketsPage] handleBulkUpdate called with:`, { department, amount });
-    if (!firestore) {
-        console.error('[Inspect][TicketsPage] Firestore not available for bulk update.');
-        return;
-    };
+    if (!firestore) return;
     
-    let collectionRef = collection(firestore, "employees");
-    let q = department === 'all' ? collectionRef : firestoreQuery(collectionRef, where("department", "==", department));
-    
-    console.log(`[Inspect][TicketsPage] Executing bulk update query for department: ${department}`);
-    
-    getDocs(q)
-      .then(querySnapshot => {
-        console.log(`[Inspect][TicketsPage] Bulk update query found ${querySnapshot.size} documents.`);
+    startUpdateTransition(async () => {
+      try {
+        let collectionRef = collection(firestore, "employees");
+        let q = department === 'all' ? collectionRef : firestoreQuery(collectionRef, where("department", "==", department));
+        
+        const querySnapshot = await getDocs(q);
+        
         if (querySnapshot.empty && department !== 'all') {
             toast({ variant: 'destructive', title: 'No Employees Found', description: `No employees found in the ${department} department.` });
             return;
@@ -92,32 +77,27 @@ export default function TicketsPage() {
         
         const batch = writeBatch(firestore);
         querySnapshot.forEach((docSnap) => {
-            const employee = docSnap.data() as Employee;
-            const newBalance = Math.max(0, (employee.ticketBalance || 0) + amount);
-            batch.update(docSnap.ref, { ticketBalance: newBalance });
+            batch.update(docSnap.ref, { ticketBalance: increment(amount) });
         });
 
-        return batch.commit();
-      })
-      .then(() => {
+        await batch.commit();
+        
         toast({
             title: 'Bulk Update Applied',
             description: `Ticket balances updated for ${department === 'all' ? 'all employees' : `the ${department} department`}.`
         });
-      })
-      .catch(async (serverError) => {
-          console.error('[Inspect][TicketsPage] Error performing bulk update:', serverError);
-          const permissionError = new FirestorePermissionError({
-              path: 'employees', 
-              operation: 'list', // getDocs is a 'list' operation
-          });
-          errorEmitter.emit('permission-error', permissionError);
-          toast({ variant: 'destructive', title: 'Bulk Update Failed', description: 'Could not update ticket balances. Check permissions.' });
-      });
+      } catch (e: any) {
+        console.error("Error performing bulk update:", e);
+        toast({ 
+          variant: 'destructive', 
+          title: 'Bulk Update Failed', 
+          description: e.message || 'Could not update ticket balances. You may not have permission.' 
+        });
+      }
+    });
   };
 
   if (areEmployeesLoading) {
-    console.log('[Inspect][TicketsPage] Rendering loading state...');
     return (
         <div className="flex h-64 w-full items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -127,15 +107,14 @@ export default function TicketsPage() {
   }
 
   if (error) {
-     console.error('[Inspect][TicketsPage] Rendering error state:', error);
      return (
-        <div className="flex h-64 w-full items-center justify-center text-destructive">
-            <p>Error loading employees. The database connection is failing. Please check console.</p>
+        <div className="flex flex-col h-64 w-full items-center justify-center rounded-lg border border-destructive/50 bg-destructive/10 p-8 text-center text-destructive">
+            <p className='font-bold'>Error Loading Employee Data</p>
+            <p className='text-sm mt-2'>You may not have the required permissions to view the list of employees. Please contact your administrator to ensure you have the 'admin' role assigned to your account.</p>
         </div>
     );
   }
 
-  console.log('[Inspect][TicketsPage] Rendering main content.');
   return (
     <>
       <header className="mb-8">
@@ -143,17 +122,19 @@ export default function TicketsPage() {
           Ticket Management
         </h1>
         <p className="mt-2 text-lg text-muted-foreground">
-          Allocate individual and bulk tickets to employees.
+          Allocate individual and bulk tickets to employees. Only users with an 'admin' role can perform these actions.
         </p>
       </header>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <IndividualTicketControl 
           employees={employees || []} 
           onUpdate={handleIndividualUpdate}
+          isUpdating={isUpdating}
         />
         <BulkTicketControl 
           departments={departments}
           onUpdate={handleBulkUpdate} 
+          isUpdating={isUpdating}
         />
       </div>
     </>

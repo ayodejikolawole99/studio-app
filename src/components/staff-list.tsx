@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition } from 'react';
 import {
   Table,
   TableBody,
@@ -34,14 +35,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, deleteDoc, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { FirestorePermissionError, errorEmitter } from '@/firebase';
+import { collection } from 'firebase/firestore';
 
 export default function StaffList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditOpen, setEditOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  const [isSearching, startSearchTransition] = useTransition();
+  const [isDeleting, startDeleteTransition] = useTransition();
   const { toast } = useToast();
   const firestore = useFirestore();
 
@@ -49,20 +49,12 @@ export default function StaffList() {
     firestore ? collection(firestore, 'employees') : null
   , [firestore]);
   
-  const { data: employees, isLoading: areEmployeesLoading, error } = useCollection<Employee>(employeesRef);
-
-  useEffect(() => {
-    // This effect will run once on mount to fetch all employees initially
-    // as useCollection is now active. Subsequent searches will be filtered client-side.
-  }, []);
-
-  const handleSearch = () => {
-    // Search is now client-side, this function is kept for potential future server-side search needs
-    // or to trigger a re-fetch if data source changes. For now, filtering happens in `filteredEmployees`.
-  }
+  // The useCollection hook now works because the firestore.rules allows admins to 'list'
+  const { data: employees, isLoading: areEmployeesLoading, error, setData: setEmployees } = useCollection<Employee>(employeesRef);
 
   const filteredEmployees = employees?.filter(employee =>
-    employee.name.toLowerCase().includes(searchTerm.toLowerCase())
+    employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    employee.employeeId.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
   const handleAddNew = () => {
@@ -77,36 +69,49 @@ export default function StaffList() {
     setEditOpen(true);
   };
 
-
   const handleEdit = (employee: Employee) => {
     setSelectedEmployee(employee);
     setEditOpen(true);
   };
   
   const handleDelete = (employeeId: string) => {
-    if (!firestore) {
-        console.error('[Inspect][StaffList] Firestore not available for delete.');
-        return;
-    }
-    const employeeRef = doc(firestore, 'employees', employeeId);
-    
-    deleteDoc(employeeRef)
-      .then(() => {
-        toast({ title: 'Success', description: 'Employee has been deleted.'});
-      })
-      .catch((error) => {
-        console.error("[Inspect][StaffList] Error deleting employee: ", error);
-        const permissionError = new FirestorePermissionError({
-            path: employeeRef.path, 
-            operation: 'delete',
+    startDeleteTransition(async () => {
+      try {
+        const response = await fetch(`/api/employees/${employeeId}`, {
+          method: 'DELETE',
         });
-        errorEmitter.emit('permission-error', permissionError);
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not delete employee. You may not have permission.' });
-      });
+        const result = await response.json();
+
+        if (response.ok) {
+          toast({ title: 'Success', description: 'Employee has been deleted.' });
+          // Optimistically update UI
+          if (employees) {
+            setEmployees(employees.filter(emp => emp.id !== employeeId));
+          }
+        } else {
+          toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not delete employee.' });
+        }
+      } catch (error) {
+        console.error("Error deleting employee: ", error);
+        toast({ variant: 'destructive', title: 'Network Error', description: 'Could not connect to the server to delete employee.' });
+      }
+    });
   };
 
-  const onSuccessfulSave = () => {
-      // Data will refresh automatically due to useCollection hook
+  const onSuccessfulSave = (savedEmployee: Employee) => {
+      // Data will refresh automatically due to useCollection hook, but we can do it faster
+      if (employees) {
+        const existingIndex = employees.findIndex(e => e.id === savedEmployee.id);
+        if (existingIndex > -1) {
+          // Update
+          const newEmployees = [...employees];
+          newEmployees[existingIndex] = savedEmployee;
+          setEmployees(newEmployees);
+        } else {
+          // Create
+          setEmployees([savedEmployee, ...employees]);
+        }
+      }
       setEditOpen(false);
   }
 
@@ -123,7 +128,7 @@ export default function StaffList() {
           </div>
           <div className="flex gap-2 mt-4">
             <Input
-              placeholder="Search by name..."
+              placeholder="Search by name or ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -137,19 +142,20 @@ export default function StaffList() {
                   <TableHead>ID</TableHead>
                   <TableHead>Department</TableHead>
                   <TableHead>Ticket Balance</TableHead>
+                  <TableHead>Biometric</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {areEmployeesLoading ? (
                    <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
+                      <TableCell colSpan={6} className="h-24 text-center">
                         <Loader2 className="mx-auto h-6 w-6 animate-spin" />
                       </TableCell>
                     </TableRow>
                 ) : error ? (
                    <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center text-destructive">
+                      <TableCell colSpan={6} className="h-24 text-center text-destructive">
                         Error: Could not load staff data. You may not have permission to view this list.
                       </TableCell>
                     </TableRow>
@@ -160,6 +166,7 @@ export default function StaffList() {
                       <TableCell className="text-muted-foreground">{employee.id}</TableCell>
                       <TableCell>{employee.department}</TableCell>
                       <TableCell className="font-medium">{employee.ticketBalance || 0}</TableCell>
+                      <TableCell>{employee.biometricTemplate ? 'Enrolled' : 'Not Enrolled'}</TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -180,7 +187,10 @@ export default function StaffList() {
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDelete(employee.id)} className="bg-destructive hover:bg-destructive/90">Continue</AlertDialogAction>
+                                  <AlertDialogAction onClick={() => handleDelete(employee.id)} className="bg-destructive hover:bg-destructive/90" disabled={isDeleting}>
+                                    {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Continue
+                                  </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
@@ -191,7 +201,7 @@ export default function StaffList() {
                   ))
                 ) : (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
+                      <TableCell colSpan={6} className="h-24 text-center">
                         No employees found. Try a different search or add new staff.
                       </TableCell>
                     </TableRow>

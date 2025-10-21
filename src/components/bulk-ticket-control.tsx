@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
-import { Users, Plus, Minus } from 'lucide-react';
+import { Users, Plus, Minus, Loader2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,9 +23,10 @@ import {
 interface BulkTicketControlProps {
   departments: string[];
   onUpdate: (department: string, amount: number) => void;
+  isUpdating: boolean;
 }
 
-export default function BulkTicketControl({ departments, onUpdate }: BulkTicketControlProps) {
+export default function BulkTicketControl({ departments, onUpdate, isUpdating }: BulkTicketControlProps) {
     const [amount, setAmount] = useState<number>(20);
     const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
     const [operation, setOperation] = useState<'add' | 'subtract'>('add');
@@ -41,15 +42,9 @@ export default function BulkTicketControl({ departments, onUpdate }: BulkTicketC
             toast({ variant: 'destructive', title: 'Error', description: 'Please select a department.' });
             return;
         }
-
+        setIsDialogOpen(false); // Close dialog immediately
         const updateAmount = operation === 'add' ? amount : -amount;
         onUpdate(selectedDepartment, updateAmount);
-
-        toast({
-            title: 'Success',
-            description: `${amount} tickets ${operation === 'add' ? 'added to' : 'subtracted from'} ${selectedDepartment === 'all' ? 'all employees' : `the ${selectedDepartment} department`}.`,
-        });
-        setIsDialogOpen(false);
     };
 
     const openDialog = (op: 'add' | 'subtract') => {
@@ -65,6 +60,8 @@ export default function BulkTicketControl({ departments, onUpdate }: BulkTicketC
         ? `Are you sure you want to add ${amount} tickets to ${departmentLabel}?`
         : `Are you sure you want to subtract ${amount} tickets from ${departmentLabel}? This action cannot be undone.`;
 
+    const isDisabled = isUpdating || !selectedDepartment;
+
     return (
         <Card>
             <CardHeader>
@@ -78,7 +75,7 @@ export default function BulkTicketControl({ departments, onUpdate }: BulkTicketC
                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="department-select">Department</Label>
-                        <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                        <Select value={selectedDepartment} onValueChange={setSelectedDepartment} disabled={isUpdating}>
                             <SelectTrigger id="department-select">
                                 <SelectValue placeholder="Select department..." />
                             </SelectTrigger>
@@ -99,6 +96,7 @@ export default function BulkTicketControl({ departments, onUpdate }: BulkTicketC
                             value={amount}
                             onChange={e => setAmount(Number(e.target.value))}
                             placeholder="e.g., 20"
+                            disabled={isUpdating}
                         />
                     </div>
                 </div>
@@ -109,12 +107,12 @@ export default function BulkTicketControl({ departments, onUpdate }: BulkTicketC
             <CardFooter className="flex flex-col sm:flex-row gap-2">
                  <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <div className="flex flex-col sm:flex-row gap-2 w-full">
-                        <Button className="w-full" disabled={!selectedDepartment} onClick={() => openDialog('add')}>
-                            <Plus className="mr-2"/>
+                        <Button className="w-full" disabled={isDisabled} onClick={() => openDialog('add')}>
+                            {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2"/>}
                             Allocate Tickets
                         </Button>
-                         <Button variant="destructive" className="w-full" disabled={!selectedDepartment} onClick={() => openDialog('subtract')}>
-                            <Minus className="mr-2"/>
+                         <Button variant="destructive" className="w-full" disabled={isDisabled} onClick={() => openDialog('subtract')}>
+                            {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Minus className="mr-2"/>}
                             Subtract Tickets
                         </Button>
                     </div>
@@ -127,7 +125,9 @@ export default function BulkTicketControl({ departments, onUpdate }: BulkTicketC
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleConfirmation}>Confirm</AlertDialogAction>
+                        <AlertDialogAction onClick={handleConfirmation} disabled={isUpdating}>
+                            {isUpdating ? 'Processing...' : 'Confirm'}
+                        </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>

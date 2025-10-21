@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/firebaseAdmin";
@@ -39,7 +40,7 @@ export async function PUT(
       );
     }
     
-    const updatePayload = {
+    const updatePayload: { [key: string]: any } = {
       ...validatedData,
       updatedAt: FieldValue.serverTimestamp(),
     };
@@ -55,6 +56,35 @@ export async function PUT(
         return NextResponse.json({ error: "Invalid input data", details: err.errors }, { status: 400 });
     }
     
+    return NextResponse.json({ error: err.message || "An unknown server error occurred" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const employeeId = params.id;
+    if (!employeeId) {
+      return NextResponse.json({ error: "Employee ID is required." }, { status: 400 });
+    }
+
+    const ref = db.collection("employees").doc(employeeId);
+    const existing = await ref.get();
+    if (!existing.exists) {
+      return NextResponse.json(
+        { error: `Employee with ID ${employeeId} not found.` },
+        { status: 404 }
+      );
+    }
+
+    await ref.delete();
+    console.log(`Successfully deleted employee ${employeeId}`);
+
+    return NextResponse.json({ success: true, id: employeeId });
+  } catch (err: any) {
+    console.error(`Error in /api/employees/${params.id} DELETE:`, err);
     return NextResponse.json({ error: err.message || "An unknown server error occurred" }, { status: 500 });
   }
 }
