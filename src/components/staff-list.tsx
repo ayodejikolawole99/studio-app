@@ -30,6 +30,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
@@ -119,7 +120,15 @@ export default function StaffList() {
         return;
     }
     const employeeRef = doc(firestore, 'employees', employeeData.id);
-    setDoc(employeeRef, employeeData, { merge: true })
+    const saveData = {
+        name: employeeData.name,
+        department: employeeData.department,
+        ticketBalance: employeeData.ticketBalance,
+        hasBiometric: employeeData.hasBiometric,
+        employeeId: employeeData.id // Ensure the employeeId is part of the document data
+    };
+    
+    setDoc(employeeRef, saveData, { merge: !isNew })
       .then(() => {
         console.log(`[Inspect][StaffList] Employee ${employeeData.id} saved. Refreshing search results.`);
         handleSearch(); // Refresh search results
@@ -133,7 +142,7 @@ export default function StaffList() {
          const permissionError = new FirestorePermissionError({
              path: employeeRef.path, 
              operation: isNew ? 'create' : 'update', 
-             requestResourceData: employeeData,
+             requestResourceData: saveData,
          });
          errorEmitter.emit('permission-error', permissionError);
          toast({ variant: 'destructive', title: 'Error', description: 'Could not save employee data.' });
