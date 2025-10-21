@@ -11,36 +11,36 @@ interface AuthContextType {
   logout: () => Promise<void>;
 }
 
-// Mock user to bypass login
-const mockUser: User = {
-  id: 'mock-admin-id',
-  name: 'Admin User',
-  email: 'admin@example.com',
-  role: 'ADMIN',
-};
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(mockUser);
-  const [loading, setLoading] = useState(false); // Set loading to false
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true); 
   const router = useRouter();
 
+  // Mock login function for future implementation
   const login = async (email: string, password: string): Promise<void> => {
-    // Mock login success
     setLoading(true);
-    console.log(`Mock login with ${email}`);
-    setUser(mockUser);
+    console.log(`Login attempt with ${email}`);
+    // In a real app, you would authenticate here and set the user.
+    // For now, we'll simulate a failed login.
     setLoading(false);
-    router.push('/admin');
+    // On successful login, you would call:
+    // setUser({ id: '...', name: '...', email: '...', role: 'ADMIN' });
+    // router.push('/admin');
   };
 
+  // Mock logout function
   const logout = async (): Promise<void> => {
-    // Mock logout
     setUser(null);
-    console.log('Mock logout');
+    console.log('User logged out');
     router.push('/login');
   };
+
+  // Simulate initial auth check
+  useState(() => {
+    setLoading(false);
+  });
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout }}>
