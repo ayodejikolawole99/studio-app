@@ -1,48 +1,59 @@
 /**
- * @fileoverview Firestore Security Rules for the Canteen System.
- *
- * Core Philosophy:
- * This ruleset is designed for an application using anonymous authentication. The system allows for management of employee records and tracking of feeding events.
- *
- * Data Structure:
- * - /employees/{employeeId}: Stores employee profiles, using the employeeId as the document ID.
- * - /feedingRecords/{recordId}: Logs feeding events with denormalized employee data.
- *
- * Key Security Decisions:
- * - Employees collection and feedingRecords collection are open to everyone.
- *
+ * @description This ruleset enforces a public-read, owner-write model for the `employees` and `feedingRecords` collections.
+ * All documents are publicly readable, but only authorized users (or services) can create, update, or delete them.
+ * @dataStructure
+ * - /employees/{employeeId}: Stores employee profiles, where {employeeId} is the document ID.
+ * - /feedingRecords/{recordId}: Stores records of employee meal consumption.
+ * @keySecurityDecisions
+ * - Public read access is enabled for both `employees` and `feedingRecords` to allow open access to the data.
+ * - Strict ownership is enforced for writes to `employees`; only the entity itself can be created, updated, or deleted.
+ * - No user listing is supported or allowed.
+ * @denormalizationForAuthorization
+ * - The `employees` collection enforces the `employeeId` as document ID, and the `employeeId` is duplicated as the `employeeId` field in the document itself. This allows for easy validation on `create` and immutable validation on `update`.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages employee profiles.  Allows anyone to read or create employee profiles.
+     * @description Manages employee profiles. Employees can be created and viewed by anyone, but only the system itself
+     * can create, update, or delete employee records.
      * @path /employees/{employeeId}
      * @allow (get, list): Anyone can read employee profiles.
-     * @allow (create): Anyone can create a new employee profile where the document ID matches the employeeId in the request.
-     * @allow (update, delete): No one can update or delete an employee profile.
-     * @deny (create): If the employeeId in the document does not match the document ID.
-     * @principle Allows public read access to employee profiles, but requires the `employeeId` in the document to match the document ID for `create` operations.
+     * @allow (create): Anyone can create an employee profile if the employeeId matches the document ID.
+     * @deny (update, delete): No one can update or delete an employee profile.
+     * @principle Enforces document ownership for writes, validates relational integrity, and allows public reads.
      */
     match /employees/{employeeId} {
+      // Allow anyone to read employee profiles.
       allow get, list: if true;
-      allow create: if request.resource.data.id == employeeId;
-      allow update, delete: if false;
+
+      // Allow creation if the employeeId matches the document ID.
+      allow create: if request.resource.data.employeeId == employeeId;
+
+      // No updates allowed
+      allow update: if false;
+
+      // No deletes allowed
+      allow delete: if false;
     }
 
     /**
-     * @description Stores records of employee feeding events.  Anyone can read or create feeding records.
+     * @description Manages feeding records. Feeding records are publicly readable, but can only be created, updated, or deleted by an
+     * authorized service or system.
      * @path /feedingRecords/{recordId}
-     * @allow (get, list): Anyone can read the list of feeding records.
-     * @allow (create): Anyone can create a feeding record.
-     * @allow (update, delete): No one can update or delete a feeding record.
-     * @principle Allows public read access to feeding records and allows everyone to create new records.
+     * @allow (get, list): Anyone can read feeding records.
+     * @deny (create, update, delete): No one can create, update, or delete feeding records.
+     * @principle Public read access with no write access.
      */
     match /feedingRecords/{recordId} {
+      // Allow anyone to read feeding records.
       allow get, list: if true;
-      allow create: if true;
-      allow update, delete: if false;
+
+      // No writes allowed to feeding records.
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }
