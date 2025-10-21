@@ -16,8 +16,9 @@ import { useEffect, useState } from 'react';
 import type { Employee } from '@/lib/types';
 import { Fingerprint, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { departments } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+const departments = ["Production", "Logistics", "Quality Assurance", "Human Resources", "Maintenance", "IT", "Finance"];
 
 interface StaffEditDialogProps {
   isOpen: boolean;
@@ -87,7 +88,7 @@ export function StaffEditDialog({
       id: employeeId, // Use the state for employeeId, which is the document ID
       name,
       department,
-      ticketBalance: isNew ? 20 : employee.ticketBalance, // Default to 20 tickets for new employees
+      ticketBalance: isNew ? 20 : (employee?.ticketBalance || 0), // Default to 20 tickets for new employees
       hasBiometric,
     };
 

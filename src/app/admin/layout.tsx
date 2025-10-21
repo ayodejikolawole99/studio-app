@@ -14,20 +14,8 @@ import {
   SidebarTrigger,
   SidebarInset,
 } from '@/components/ui/sidebar';
-import { Users, Ticket, BarChart3, Settings, LayoutDashboard, Loader2 } from 'lucide-react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Users, Ticket, BarChart3, Settings, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useRouter } from 'next/navigation';
-import { useUser, useAuth } from '@/firebase';
-import { signOut } from 'firebase/auth';
 
 const navItems = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
@@ -37,52 +25,7 @@ const navItems = [
 ];
 
 function AdminLayoutContent({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
-  const { user, isUserLoading } = useUser();
-  const auth = useAuth();
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      router.push('/login');
-    } catch (error) {
-      console.error("Error signing out: ", error);
-    }
-  };
-  
-  const getInitials = (name: string | null | undefined) => {
-    if (!name) return 'A'; // Anonymous
-    return name.split(' ').map(n => n[0]).join('');
-  }
-
-  if (isUserLoading) {
-    return (
-        <div className="flex h-screen w-full items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="ml-4 text-muted-foreground">Authenticating...</p>
-        </div>
-    );
-  }
-
-  // Once loading is complete, if there's still no user, redirect to login.
-  if (!user) {
-    // Using useEffect to handle redirection in a client component
-    // after the initial render cycle.
-    React.useEffect(() => {
-        router.push('/login');
-    }, [router]);
-    
-    // Render a loading/redirecting state
-    return (
-        <div className="flex h-screen w-full items-center justify-center">
-            <p className="text-muted-foreground">Redirecting to login...</p>
-        </div>
-    );
-  }
-
-  const userName = user.displayName || user.email || 'Anonymous User';
-  const userEmail = user.email || `uid: ${user.uid}`;
 
   return (
       <SidebarProvider>
@@ -112,29 +55,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                   </SidebarMenu>
 
                   <SidebarFooter>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="justify-start gap-2 p-2 h-auto w-full">
-                                  <Avatar className="h-8 w-8">
-                                      <AvatarFallback>{getInitials(userName)}</AvatarFallback>
-                                  </Avatar>
-                                  <div className="text-left group-data-[collapsible=icon]:hidden">
-                                      <p className="font-medium text-sm">{userName}</p>
-                                      <p className="text-xs text-muted-foreground">{userEmail}</p>
-                                  </div>
-                            </Button>
-                        </DropdownMenuTrigger>
-                         <DropdownMenuContent side="right" align="start">
-                          <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem>Profile</DropdownMenuItem>
-                          <DropdownMenuItem>Settings</DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                           <DropdownMenuItem onClick={handleLogout}>
-                            Log out
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {/* User profile removed */}
                   </SidebarFooter>
               </SidebarContent>
           </Sidebar>
@@ -156,6 +77,5 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  // FirebaseProvider is now in the root layout, so it's available here.
   return <AdminLayoutContent>{children}</AdminLayoutContent>;
 }

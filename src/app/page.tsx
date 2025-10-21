@@ -62,14 +62,13 @@ function AuthPageContent() {
 
         // 2. Create a feeding record
         const feedingRecordRef = collection(firestore, 'feedingRecords');
-        const feedingRecordId = doc(feedingRecordRef).id;
         const newFeedingRecord = {
           employeeId: randomEmployee.id,
           employeeName: randomEmployee.name,
           department: randomEmployee.department,
           timestamp: serverTimestamp()
         };
-        batch.set(doc(feedingRecordRef, feedingRecordId), newFeedingRecord);
+        addDoc(feedingRecordRef, newFeedingRecord);
         
         // Commit the transaction
         await batch.commit();
