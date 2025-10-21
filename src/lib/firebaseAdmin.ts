@@ -1,13 +1,14 @@
 
 import * as admin from "firebase-admin";
 
+// This check is crucial to prevent re-initialization on hot reloads in development.
 if (!admin.apps.length) {
   // Check for environment variables and throw an error if they are missing.
   // This is crucial for server-side debugging.
   if (!process.env.FIREBASE_PROJECT_ID ||
       !process.env.FIREBASE_CLIENT_EMAIL ||
       !process.env.FIREBASE_PRIVATE_KEY) {
-    throw new Error("Missing Firebase Admin environment variables. Check your .env or hosting configuration.");
+    throw new Error("Missing Firebase Admin environment variables. Check your .env file for local development or hosting configuration for production.");
   }
 
   admin.initializeApp({

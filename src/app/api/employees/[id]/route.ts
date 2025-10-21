@@ -49,7 +49,8 @@ export async function PUT(
     console.log(`Successfully updated employee ${employeeId}`);
 
     return NextResponse.json({ success: true, id: employeeId });
-  } catch (err: any) {
+  } catch (err: any)
+  {
     console.error(`Error in /api/employees/${params.id} PUT:`, err);
 
     if (err instanceof z.ZodError) {
