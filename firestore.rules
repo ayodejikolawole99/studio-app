@@ -1,79 +1,80 @@
 /**
- * @description This ruleset enforces a strict user-ownership model for employee profiles and allows public read access to feeding records. Administrative privileges are granted through custom claims.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership model for employee profiles,
+ *              allowing employees to read only their own profiles, while granting
+ *              administrative users full access to manage all employee data and feeding records.
+ *              Feeding records are publicly readable but only modifiable via the Admin SDK.
+ *
  * @dataStructure
- *   - /employees/{employeeId}: Stores employee profiles, with the document ID being the employee's ID.
- *   - /feedingRecords/{recordId}: Stores records of meal consumption events.
+ *   - /employees/{employeeId}: Stores employee profiles. The document ID is the official employee number.
+ *   - /feedingRecords/{recordId}: A log of all feeding events. Data is denormalized for efficient querying and reporting.
+ *
  * @keySecurityDecisions
- *   - Employee profiles are only readable by the employee themselves or by accounts with the 'admin' custom claim.
- *   - Only accounts with the 'admin' custom claim can create, update, or delete employee profiles.
- *   - Feeding records are publicly readable but cannot be created, updated, or deleted directly through client-side rules; they must be managed via the Admin SDK.
- * @denormalizationForAuthorization
- *   - The 'employeeId' is used both as the document ID and as a field within the Employee document for easy authorization.
- * @structuralSegregation
- *   - No segregation is needed as private employee data and public logs are stored in separate collections with specific rules.
+ *   - Employees can only read their own profile (get).
+ *   - Only admins can list all employees.
+ *   - Only admins can create, update, or delete employee profiles.
+ *   - Feeding records are publicly readable.
+ *   - Feeding records can only be created, updated, or deleted via the Admin SDK (client writes are forbidden).
+ *   - Admin privileges are determined by the 'admin' custom claim on the user's JWT.
+ *   - Enforces ID consistency during employee creation.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages employee profiles, allowing employees to read their own profiles and admins to manage all profiles.
+     * @description Manages employee profiles. Employees can read their own profile, admins can read and manage all.
      * @path /employees/{employeeId}
-     * @allow (read) User with UID 'employeeId' can read.
-     * @allow (create, update, delete) User with 'admin' custom claim can modify.
-     * @deny (create, update, delete) User without 'admin' custom claim cannot modify.
-     * @deny (read) User with UID other than 'employeeId' and without 'admin' claim cannot read.
-     * @principle Enforces document ownership for reads and admin-only access for writes.
+     * @allow (get) User with matching uid can read their own profile.
+     * @deny (get) User attempts to read another user's profile.
+     * @allow (create) Admin can create an employee profile with matching employeeId.
+     * @deny (create) Non-admin attempts to create an employee profile.
+     * @allow (update) Admin can update any employee profile.
+     * @deny (update) Non-admin attempts to update an employee profile.
+     * @allow (delete) Admin can delete any employee profile.
+     * @deny (delete) Non-admin attempts to delete an employee profile.
+     * @principle Enforces document ownership for reads and admin-only access for writes. Validates employee ID consistency.
      */
     match /employees/{employeeId} {
-      // Read rules
-      allow get: if isSignedIn() && (request.auth.uid == employeeId || isAdmin());
+      // Employees can read their own profile, admins can read all
+      allow get: if isSignedIn() && (isOwner(employeeId) || isAdmin());
       allow list: if isSignedIn() && isAdmin();
 
-      // Write rules
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      // Only admins can create/update/delete, and enforce ID consistency
+      allow create: if isAdmin() && request.resource.data.employeeId == employeeId;
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Stores records of meal consumption events, publicly readable but writable only via Admin SDK.
+     * @description Manages feeding records. Records are publicly readable, but only modifiable via the Admin SDK.
      * @path /feedingRecords/{recordId}
-     * @allow (read) Any user can read feeding records.
-     * @deny (create, update, delete) No user can create, update, or delete feeding records through client-side rules.
-     * @principle Public read access with admin-only writes.
+     * @allow (get) Any user can read a feeding record.
+     * @allow (list) Any user can list feeding records.
+     * @deny (create) Any user attempts to create a feeding record.
+     * @deny (update) Any user attempts to update a feeding record.
+     * @deny (delete) Any user attempts to delete a feeding record.
+     * @principle Enforces public read-only access with admin-only writes.
      */
     match /feedingRecords/{recordId} {
-      // Read rules
+      // Public read
       allow get, list: if true;
 
-      // Write rules
+      // No client writes
       allow create: if false;
       allow update: if false;
       allow delete: if false;
     }
 
-    // Helper functions
+    // Helpers
     function isSignedIn() {
       return request.auth != null;
     }
-
     function isAdmin() {
       return request.auth.token.admin == true;
     }
-
     function isOwner(userId) {
-        return request.auth.uid == userId;
+      return request.auth.uid == userId;
     }
-
-    function isExistingEmployee(employeeId) {
-        return exists(/databases/$(database)/documents/employees/$(employeeId));
-    }
-
-    // Relaxing validation to allow rapid iteration.  Focus is on authorization, not data shape.
-    function isValidEmployeeCreate(employeeId) {
-        return true;
-    }
-
   }
 }
