@@ -23,7 +23,6 @@ import { FirestorePermissionError, errorEmitter } from '@/firebase';
 import { createEmployee } from '@/ai/flows/create-employee-flow';
 import { z } from 'zod';
 
-// Define the schema for the employee data input.
 const CreateEmployeeInputSchema = z.object({
   name: z.string(),
   employeeId: z.string(),
@@ -69,7 +68,6 @@ export function StaffEditDialog({
       setDepartment(employee.department || '');
       setBiometricTemplate(employee.biometricTemplate);
     } else if (!isOpen) {
-      // Reset form when dialog is closed
       setName('');
       setEmployeeId('');
       setDepartment('');
@@ -103,6 +101,7 @@ export function StaffEditDialog({
 
         try {
             if (isNewEmployee) {
+                // Use the server-side flow to create the employee
                 const newEmployeeData: CreateEmployeeInput = {
                     name,
                     department,
@@ -112,6 +111,7 @@ export function StaffEditDialog({
                 };
                 await createEmployee(newEmployeeData);
             } else {
+                // Use standard client-side update for existing employees
                 const employeeRef = doc(firestore, 'employees', employeeId);
                 const updatedData: Partial<Employee> = {
                     name,
@@ -129,6 +129,7 @@ export function StaffEditDialog({
         } catch (error) {
             console.error("[Inspect][StaffEditDialog] Error saving employee: ", error);
             const employeeRef = doc(firestore, 'employees', employeeId);
+            // This error handling might need adjustment depending on where the error comes from (flow vs. update)
             const permissionError = new FirestorePermissionError({
                 path: employeeRef.path,
                 operation: isNewEmployee ? 'create' : 'update',
