@@ -34,13 +34,11 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
-import { collection, doc, deleteDoc, getDocs, query, where, setDoc } from 'firebase/firestore';
+import { collection, doc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
 
 export default function StaffList() {
-  console.log('[Inspect][StaffList] Component rendered');
   const [searchTerm, setSearchTerm] = useState('');
-  const [lastSearchedTerm, setLastSearchedTerm] = useState('');
   const [isEditOpen, setEditOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isSearching, startSearchTransition] = useTransition();
@@ -49,27 +47,24 @@ export default function StaffList() {
   const firestore = useFirestore();
 
   const handleSearch = () => {
-    console.log(`[Inspect][StaffList] handleSearch called with term: "${searchTerm}"`);
     if (!firestore) {
         console.error('[Inspect][StaffList] Firestore not available for search.');
         return;
     }
-    if (!searchTerm) {
-        toast({ title: 'Search Term Required', description: 'Please enter a name to search for.', variant: 'destructive' });
-        return;
-    }
-    setLastSearchedTerm(searchTerm);
     startSearchTransition(async () => {
       try {
         const employeesRef = collection(firestore, 'employees');
-        console.log(`[Inspect][StaffList] Creating query for name: '${searchTerm}'`);
-        const q = query(employeesRef, where('name', '>=', searchTerm), where('name', '<=', searchTerm + '\uf8ff'));
+        let q;
+        if (searchTerm.trim() === '') {
+          q = query(employeesRef);
+        } else {
+          q = query(employeesRef, where('name', '>=', searchTerm), where('name', '<=', searchTerm + '\uf8ff'));
+        }
         const querySnapshot = await getDocs(q);
         const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-        console.log(`[Inspect][StaffList] Search found ${results.length} results:`, results);
         setSearchResults(results);
-        if (results.length === 0) {
-          toast({ title: 'No Employees Found', description: 'You can add this employee to the database.' });
+        if (results.length === 0 && searchTerm.trim() !== '') {
+          toast({ title: 'No Employees Found', description: `No staff found with the name "${searchTerm}".` });
         }
       } catch (e) {
         console.error("[Inspect][StaffList] Error searching employees: ", e);
@@ -82,13 +77,11 @@ export default function StaffList() {
       }
     });
   }
-
+  
   const handleAddNew = () => {
-    console.log('[Inspect][StaffList] handleAddNew called for name:', lastSearchedTerm);
-    // Create a new employee object with a temporary ID and the searched name
     const newEmployee: Employee = {
-      id: '', // Will be set in the dialog
-      name: lastSearchedTerm,
+      id: '', // ID will be set in the dialog from the employeeId field
+      name: '',
       department: '',
       ticketBalance: 0,
       employeeId: '',
@@ -99,13 +92,11 @@ export default function StaffList() {
 
 
   const handleEdit = (employee: Employee) => {
-    console.log('[Inspect][StaffList] handleEdit called for employee:', employee);
     setSelectedEmployee(employee);
     setEditOpen(true);
   };
   
   const handleDelete = (employeeId: string) => {
-    console.log('[Inspect][StaffList] handleDelete called for employee ID:', employeeId);
     if (!firestore) {
         console.error('[Inspect][StaffList] Firestore not available for delete.');
         return;
@@ -114,7 +105,6 @@ export default function StaffList() {
     
     deleteDoc(employeeRef)
       .then(() => {
-        console.log(`[Inspect][StaffList] Employee ${employeeId} deleted. Refreshing search results.`);
         handleSearch(); // Refresh search results after delete
         toast({ title: 'Success', description: 'Employee has been deleted.'});
       })
@@ -134,25 +124,20 @@ export default function StaffList() {
       setEditOpen(false);
   }
 
-  const showAddButton = lastSearchedTerm && !isSearching && searchResults.length === 0;
-
-
   return (
     <>
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <CardTitle>Staff Database</CardTitle>
-            {showAddButton && (
-              <Button onClick={handleAddNew} variant="outline">
+            <Button onClick={handleAddNew}>
                 <UserPlus className="mr-2" />
-                Add "{lastSearchedTerm}"
+                Add New Staff
               </Button>
-            )}
           </div>
           <div className="flex gap-2 mt-4">
             <Input
-              placeholder="Search by name to find or add staff..."
+              placeholder="Search by name or leave blank to show all..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -204,7 +189,7 @@ export default function StaffList() {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    This will permanently delete the employee record and any associated biometric data.
+                                    This will permanently delete the employee record. This action cannot be undone.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -221,7 +206,7 @@ export default function StaffList() {
                 ) : (
                     <TableRow>
                       <TableCell colSpan={5} className="h-24 text-center">
-                        Search for an employee to see results.
+                        No employees found. Try searching or adding new staff.
                       </TableCell>
                     </TableRow>
                   )}

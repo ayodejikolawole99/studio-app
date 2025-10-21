@@ -18,7 +18,7 @@ import { Fingerprint, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFirestore } from '@/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
 
 const departments = ["Production", "Logistics", "Quality Assurance", "Human Resources", "Maintenance", "IT", "Finance"];
@@ -49,14 +49,12 @@ export function StaffEditDialog({
     if (isOpen && employee) {
       const isNew = !employee.id;
       setIsNewEmployee(isNew);
-      console.log("[Inspect][StaffEditDialog] Dialog opened. Is new employee?", isNew, "Employee:", employee);
       setName(employee.name || '');
       setEmployeeId(employee.employeeId || '');
       setDepartment(employee.department || '');
       setBiometricTemplate(employee.biometricTemplate);
     } else if (!isOpen) {
       // Reset form when dialog is closed
-      console.log("[Inspect][StaffEditDialog] Dialog closed, resetting state.");
       setName('');
       setEmployeeId('');
       setDepartment('');
@@ -70,7 +68,6 @@ export function StaffEditDialog({
       await new Promise(resolve => setTimeout(resolve, 1000));
       const simulatedTemplate = `B64_TEMPLATE_${employeeId || 'NEW'}_${Date.now()}`;
       setBiometricTemplate(simulatedTemplate);
-      console.log("[Inspect][StaffEditDialog] Biometric scan simulated, template set:", simulatedTemplate);
       toast({
         title: "Biometric Scan Successful",
         description: "Fingerprint data has been captured. Save the employee to store it.",
@@ -78,48 +75,57 @@ export function StaffEditDialog({
     });
   };
 
-  const handleSave = () => {
-    console.log("[Inspect][StaffEditDialog] handleSave triggered.");
+  const handleSave = async () => {
     if (!name || !employeeId || !department) {
       toast({ variant: "destructive", title: "Validation Error", description: "Please fill out all fields, including Employee Number." });
       return;
     }
     if (!firestore) {
-        console.error('[Inspect][StaffEditDialog] Firestore not available for save.');
         toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
         return;
     }
 
-    const saveData: Omit<Employee, 'id'> = {
-      name,
-      department,
-      employeeId,
-      ...(biometricTemplate && { biometricTemplate }),
-      ticketBalance: employee?.ticketBalance || 0,
-    };
-
-    console.log(`[Inspect][StaffEditDialog] Preparing to save data for employee ID ${employeeId}:`, saveData);
     const employeeRef = doc(firestore, 'employees', employeeId);
     
-    setDoc(employeeRef, saveData, { merge: true })
-      .then(() => {
-        console.log(`[Inspect][StaffEditDialog] Employee ${employeeId} saved successfully.`);
-        toast({
-            title: "Success",
-            description: `Employee ${isNewEmployee ? 'added' : 'updated'} successfully.`,
-        });
-        onSaveSuccess(); // Call the callback to refresh list and close dialog
-      })
-      .catch((error) => {
-         console.error("[Inspect][StaffEditDialog] Error saving employee: ", error);
-         const permissionError = new FirestorePermissionError({
-             path: employeeRef.path, 
-             operation: isNewEmployee ? 'create' : 'update',
-             requestResourceData: saveData,
-         });
-         errorEmitter.emit('permission-error', permissionError);
-         toast({ variant: 'destructive', title: 'Error', description: 'Could not save employee data.' });
+    try {
+      if (isNewEmployee) {
+        // Step 1: Create an empty document shell. This is a workaround for restrictive environments.
+        await setDoc(employeeRef, {}); 
+        
+        // Step 2: Update the new document with the actual data.
+        const newData: Omit<Employee, 'id'> = {
+          name,
+          department,
+          employeeId,
+          biometricTemplate: biometricTemplate || '',
+          ticketBalance: 0,
+        };
+        await updateDoc(employeeRef, newData);
+      } else {
+        // For existing employees, just merge the updated data.
+        const updatedData: Partial<Employee> = {
+          name,
+          department,
+          ...(biometricTemplate !== undefined && { biometricTemplate }),
+        };
+        await updateDoc(employeeRef, updatedData);
+      }
+
+      toast({
+          title: "Success",
+          description: `Employee ${isNewEmployee ? 'added' : 'updated'} successfully.`,
       });
+      onSaveSuccess();
+    } catch (error) {
+       console.error("[Inspect][StaffEditDialog] Error saving employee: ", error);
+       const permissionError = new FirestorePermissionError({
+           path: employeeRef.path, 
+           operation: isNewEmployee ? 'create' : 'update',
+           requestResourceData: { name, department, employeeId },
+       });
+       errorEmitter.emit('permission-error', permissionError);
+       toast({ variant: 'destructive', title: 'Error', description: 'Could not save employee data.' });
+    }
   };
 
   const hasBiometric = !!biometricTemplate;
