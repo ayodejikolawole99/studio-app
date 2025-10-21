@@ -175,7 +175,8 @@ export default function StaffList() {
                 ) : error ? (
                    <TableRow>
                       <TableCell colSpan={6} className="h-24 text-center text-destructive">
-                        {error}
+                        <p className="font-bold">Failed to load staff data.</p>
+                        <p className="text-sm mt-1">{error.includes("JSON") ? "The API route might be missing or crashing." : error}</p>
                       </TableCell>
                     </TableRow>
                 ) : filteredEmployees.length > 0 ? (
