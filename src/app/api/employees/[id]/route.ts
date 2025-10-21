@@ -50,7 +50,7 @@ export async function PUT(
 
     return NextResponse.json({ success: true, id: employeeId });
   } catch (err: any) {
-    console.error(`Error in /api/employees/${(err as any)?.params?.id} PUT:`, err);
+    console.error(`Error in /api/employees/${params.id} PUT:`, err);
 
     if (err instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid input data", details: err.errors }, { status: 400 });
