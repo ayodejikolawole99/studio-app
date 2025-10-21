@@ -5,10 +5,8 @@ import { useRouter } from 'next/navigation';
 import type { Employee } from '@/lib/types';
 import BiometricScanner from '@/components/biometric-scanner';
 import { useToast } from "@/hooks/use-toast"
-import { Loader2 } from 'lucide-react';
 import { useFirestore } from '@/firebase';
-import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
-import { Button } from '@/components/ui/button';
+import { doc, updateDoc, collection, addDoc, serverTimestamp, query, where, getDocs, limit, increment } from 'firebase/firestore';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
 
 function AuthPageContent() {
@@ -64,8 +62,9 @@ function AuthPageContent() {
       // Simulate verification delay
       await new Promise(resolve => setTimeout(resolve, 1000));
 
+      // Use the atomic increment operation
+      const updateData = { ticketBalance: increment(-1) };
       const newBalance = (employeeData.ticketBalance || 0) - 1;
-      const updateData = { ticketBalance: newBalance };
       
       console.log(`[Inspect][AuthPage] Initiating non-blocking update for ticket balance to ${newBalance}`);
       updateDoc(employeeRef, updateData).catch(async (serverError) => {

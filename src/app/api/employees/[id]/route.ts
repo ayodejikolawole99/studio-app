@@ -1,15 +1,15 @@
 
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { db } from "@/lib/firebaseAdmin";
 import { FieldValue } from 'firebase-admin/firestore';
+import { z } from "zod";
 
-// Schema for updating an employee. All fields are optional.
 const UpdateEmployeeSchema = z.object({
   name: z.string().min(1, "Name is required").optional(),
   department: z.string().min(1, "Department is required").optional(),
   biometricTemplate: z.string().optional(),
 });
+
 
 export async function PUT(
   req: Request,
@@ -74,10 +74,8 @@ export async function DELETE(
     const ref = db.collection("employees").doc(employeeId);
     const existing = await ref.get();
     if (!existing.exists) {
-      return NextResponse.json(
-        { error: `Employee with ID ${employeeId} not found.` },
-        { status: 404 }
-      );
+      // If it doesn't exist, we can consider the delete operation successful from the client's perspective.
+      return NextResponse.json({ success: true, id: employeeId, message: "Employee already deleted." });
     }
 
     await ref.delete();
