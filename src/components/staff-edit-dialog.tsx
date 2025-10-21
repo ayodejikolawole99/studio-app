@@ -41,14 +41,17 @@ export function StaffEditDialog({
   const [department, setDepartment] = useState('');
   const [biometricTemplate, setBiometricTemplate] = useState<string | undefined>(undefined);
   const [isScanning, startBiometricScan] = useTransition();
+  const [isNewEmployee, setIsNewEmployee] = useState(false);
   const { toast } = useToast();
   const firestore = useFirestore();
 
   useEffect(() => {
     if (isOpen && employee) {
-      console.log("[Inspect][StaffEditDialog] Dialog opened with employee:", employee);
+      const isNew = !employee.id;
+      setIsNewEmployee(isNew);
+      console.log("[Inspect][StaffEditDialog] Dialog opened. Is new employee?", isNew, "Employee:", employee);
       setName(employee.name || '');
-      setEmployeeId(employee.id || '');
+      setEmployeeId(employee.employeeId || '');
       setDepartment(employee.department || '');
       setBiometricTemplate(employee.biometricTemplate);
     } else if (!isOpen) {
@@ -58,19 +61,16 @@ export function StaffEditDialog({
       setEmployeeId('');
       setDepartment('');
       setBiometricTemplate(undefined);
+      setIsNewEmployee(false);
     }
   }, [isOpen, employee]);
 
   const handleBiometricScan = () => {
     startBiometricScan(async () => {
-      // In a real app, this would call the SecuGen WebAPI.
-      // For now, we simulate the scan and get a template.
       await new Promise(resolve => setTimeout(resolve, 1000));
       const simulatedTemplate = `B64_TEMPLATE_${employeeId || 'NEW'}_${Date.now()}`;
-      
       setBiometricTemplate(simulatedTemplate);
       console.log("[Inspect][StaffEditDialog] Biometric scan simulated, template set:", simulatedTemplate);
-      
       toast({
         title: "Biometric Scan Successful",
         description: "Fingerprint data has been captured. Save the employee to store it.",
@@ -81,7 +81,7 @@ export function StaffEditDialog({
   const handleSave = () => {
     console.log("[Inspect][StaffEditDialog] handleSave triggered.");
     if (!name || !employeeId || !department) {
-      toast({ variant: "destructive", title: "Validation Error", description: "Please fill out all fields." });
+      toast({ variant: "destructive", title: "Validation Error", description: "Please fill out all fields, including Employee Number." });
       return;
     }
     if (!firestore) {
@@ -94,23 +94,19 @@ export function StaffEditDialog({
       name,
       department,
       employeeId,
-      // Only include the template if it has been scanned/exists
       ...(biometricTemplate && { biometricTemplate }),
-      // Keep existing balance or default to 0.
       ticketBalance: employee?.ticketBalance || 0,
     };
 
     console.log(`[Inspect][StaffEditDialog] Preparing to save data for employee ID ${employeeId}:`, saveData);
     const employeeRef = doc(firestore, 'employees', employeeId);
     
-    // Using setDoc with merge: true will create the doc if it doesn't exist,
-    // or update it if it does. This effectively becomes an "upsert".
     setDoc(employeeRef, saveData, { merge: true })
       .then(() => {
         console.log(`[Inspect][StaffEditDialog] Employee ${employeeId} saved successfully.`);
         toast({
             title: "Success",
-            description: `Employee updated successfully.`,
+            description: `Employee ${isNewEmployee ? 'added' : 'updated'} successfully.`,
         });
         onSaveSuccess(); // Call the callback to refresh list and close dialog
       })
@@ -118,7 +114,7 @@ export function StaffEditDialog({
          console.error("[Inspect][StaffEditDialog] Error saving employee: ", error);
          const permissionError = new FirestorePermissionError({
              path: employeeRef.path, 
-             operation: 'update', // We are now only updating
+             operation: isNewEmployee ? 'create' : 'update',
              requestResourceData: saveData,
          });
          errorEmitter.emit('permission-error', permissionError);
@@ -127,17 +123,20 @@ export function StaffEditDialog({
   };
 
   const hasBiometric = !!biometricTemplate;
+  const dialogTitle = isNewEmployee ? 'Add New Staff' : 'Edit Staff';
+  const dialogDescription = isNewEmployee 
+    ? "Fill in the details for the new employee."
+    : "Update the details for this employee.";
 
-  // Do not render the dialog if there is no employee selected, as we can no longer create new ones.
   if (!employee) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit Staff</DialogTitle>
+          <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>
-            Update the details for this employee.
+            {dialogDescription}
           </DialogDescription>
         </DialogHeader>
 
@@ -149,7 +148,7 @@ export function StaffEditDialog({
             </div>
             <div className="space-y-2">
                 <Label htmlFor="id">Employee Number</Label>
-                <Input id="id" value={employeeId} onChange={(e) => setEmployeeId(e.target.value.toUpperCase())} disabled={true} placeholder="e.g. E-011" />
+                <Input id="id" value={employeeId} onChange={(e) => setEmployeeId(e.target.value.toUpperCase())} disabled={!isNewEmployee} placeholder="e.g. E-011" />
             </div>
           </div>
            <div className="grid grid-cols-1 gap-4">

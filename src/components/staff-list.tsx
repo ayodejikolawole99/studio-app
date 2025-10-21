@@ -15,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Search, Loader2 } from 'lucide-react';
+import { MoreHorizontal, Search, Loader2, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -34,12 +34,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
-import { collection, doc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, deleteDoc, getDocs, query, where, setDoc } from 'firebase/firestore';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
 
 export default function StaffList() {
   console.log('[Inspect][StaffList] Component rendered');
   const [searchTerm, setSearchTerm] = useState('');
+  const [lastSearchedTerm, setLastSearchedTerm] = useState('');
   const [isEditOpen, setEditOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isSearching, startSearchTransition] = useTransition();
@@ -57,20 +58,18 @@ export default function StaffList() {
         toast({ title: 'Search Term Required', description: 'Please enter a name to search for.', variant: 'destructive' });
         return;
     }
+    setLastSearchedTerm(searchTerm);
     startSearchTransition(async () => {
       try {
         const employeesRef = collection(firestore, 'employees');
         console.log(`[Inspect][StaffList] Creating query for name: '${searchTerm}'`);
-        // Note: Firestore string queries are case-sensitive and match prefixes.
-        // For a true "contains" or case-insensitive search, a more advanced setup like Algolia is needed.
-        // This search finds names that start with the searchTerm.
         const q = query(employeesRef, where('name', '>=', searchTerm), where('name', '<=', searchTerm + '\uf8ff'));
         const querySnapshot = await getDocs(q);
         const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
         console.log(`[Inspect][StaffList] Search found ${results.length} results:`, results);
         setSearchResults(results);
         if (results.length === 0) {
-          toast({ title: 'No Results', description: 'No employees found with that name.' });
+          toast({ title: 'No Employees Found', description: 'You can add this employee to the database.' });
         }
       } catch (e) {
         console.error("[Inspect][StaffList] Error searching employees: ", e);
@@ -83,6 +82,21 @@ export default function StaffList() {
       }
     });
   }
+
+  const handleAddNew = () => {
+    console.log('[Inspect][StaffList] handleAddNew called for name:', lastSearchedTerm);
+    // Create a new employee object with a temporary ID and the searched name
+    const newEmployee: Employee = {
+      id: '', // Will be set in the dialog
+      name: lastSearchedTerm,
+      department: '',
+      ticketBalance: 0,
+      employeeId: '',
+    };
+    setSelectedEmployee(newEmployee);
+    setEditOpen(true);
+  };
+
 
   const handleEdit = (employee: Employee) => {
     console.log('[Inspect][StaffList] handleEdit called for employee:', employee);
@@ -120,17 +134,25 @@ export default function StaffList() {
       setEditOpen(false);
   }
 
+  const showAddButton = lastSearchedTerm && !isSearching && searchResults.length === 0;
+
+
   return (
     <>
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <CardTitle>Staff Database</CardTitle>
-            {/* The "Add New Staff" button is removed to prevent create operations */}
+            {showAddButton && (
+              <Button onClick={handleAddNew} variant="outline">
+                <UserPlus className="mr-2" />
+                Add "{lastSearchedTerm}"
+              </Button>
+            )}
           </div>
           <div className="flex gap-2 mt-4">
             <Input
-              placeholder="Search by name..."
+              placeholder="Search by name to find or add staff..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
