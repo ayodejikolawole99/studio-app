@@ -20,7 +20,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useFirestore } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
-import { createEmployee } from '@/ai/flows/create-employee-flow';
 import { z } from 'zod';
 
 const CreateEmployeeInputSchema = z.object({
@@ -32,7 +31,6 @@ const CreateEmployeeInputSchema = z.object({
 });
 
 type CreateEmployeeInput = z.infer<typeof CreateEmployeeInputSchema>;
-
 
 const departments = ["Production", "Logistics", "Quality Assurance", "Human Resources", "Maintenance", "IT", "Finance"];
 
@@ -94,14 +92,10 @@ export function StaffEditDialog({
             toast({ variant: "destructive", title: "Validation Error", description: "Please fill out all fields, including Employee Number." });
             return;
         }
-        if (!firestore && !isNewEmployee) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
-            return;
-        }
 
         try {
             if (isNewEmployee) {
-                // Use the server-side flow to create the employee
+                // Use the new API route to create the employee
                 const newEmployeeData: CreateEmployeeInput = {
                     name,
                     department,
@@ -109,9 +103,16 @@ export function StaffEditDialog({
                     biometricTemplate: biometricTemplate,
                     ticketBalance: 0,
                 };
-                const result = await createEmployee(newEmployeeData);
 
-                if (result.success) {
+                const response = await fetch('/api/employees', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newEmployeeData),
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
                     toast({
                         title: "Success",
                         description: `Employee ${result.id} added successfully.`,
@@ -126,30 +127,37 @@ export function StaffEditDialog({
                 }
             } else {
                 // Use standard client-side update for existing employees
+                 if (!firestore) {
+                    toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
+                    return;
+                }
                 const employeeRef = doc(firestore, 'employees', employeeId);
                 const updatedData: Partial<Employee> = {
                     name,
                     department,
                     ...(biometricTemplate !== undefined && { biometricTemplate }),
                 };
-                await updateDoc(employeeRef, updatedData);
-                toast({
-                    title: "Success",
-                    description: `Employee updated successfully.`,
+                updateDoc(employeeRef, updatedData)
+                .then(() => {
+                    toast({
+                        title: "Success",
+                        description: `Employee updated successfully.`,
+                    });
+                    onSaveSuccess();
+                }).catch(async (error) => {
+                     console.error("[Inspect][StaffEditDialog] Error updating employee: ", error);
+                     const permissionError = new FirestorePermissionError({
+                        path: employeeRef.path,
+                        operation: 'update',
+                        requestResourceData: updatedData,
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                    toast({ variant: 'destructive', title: 'Error', description: 'Could not update employee data.' });
                 });
-                onSaveSuccess();
             }
         } catch (error) {
-            console.error("[Inspect][StaffEditDialog] Error saving employee: ", error);
-            const employeeRef = doc(firestore, 'employees', employeeId);
-            // This error handling might need adjustment depending on where the error comes from (flow vs. update)
-            const permissionError = new FirestorePermissionError({
-                path: employeeRef.path,
-                operation: isNewEmployee ? 'create' : 'update',
-                requestResourceData: { name, department, employeeId },
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not save employee data.' });
+            console.error("[Inspect][StaffEditDialog] Error saving employee via API: ", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'A network or server error occurred.' });
         }
     });
   };
