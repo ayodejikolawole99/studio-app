@@ -2,79 +2,47 @@
  * @fileoverview Firestore Security Rules for the Canteen System.
  *
  * Core Philosophy:
- * This ruleset prioritizes secure data access based on user roles.
- * All write operations require authentication and authorization.
- * Data validation is relaxed for prototyping but includes basic authorization checks.
+ * This ruleset is designed for an application using anonymous authentication. The system allows for management of employee records and tracking of feeding events.
  *
  * Data Structure:
- * - /employees/{employeeId}: Stores employee profiles, with the employeeId as the document ID.
- * - /feedingRecords/{recordId}: Stores records of employee meal consumption.
+ * - /employees/{employeeId}: Stores employee profiles, using the employeeId as the document ID.
+ * - /feedingRecords/{recordId}: Logs feeding events with denormalized employee data.
  *
  * Key Security Decisions:
- * - Employees can only read their own profile.
- * - Creating/Updating Employees is only allowed for admins.
- * - Feeding Records can be read publicly for reporting but creation is restricted to system components.
- * - No listing of employees is allowed to prevent data scraping.
+ * - Employees collection and feedingRecords collection are open to everyone.
  *
- * Denormalization for Authorization:
- * - The 'FeedingRecord' includes 'employeeId', 'employeeName', and 'department' to avoid additional lookups during rule evaluation.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to employee profiles. Employees can only read their own profile. Admins can create/update profiles.
+     * @description Manages employee profiles.  Allows anyone to read or create employee profiles.
      * @path /employees/{employeeId}
-     * @allow (get) User abc can read employee profile if signed in and owns the profile.
-     * @allow (create) User abc can create the employee profile if signed in and is an admin.
-     * @deny (get) User abc cannot read employee profile if not signed in.
-     * @deny (create) User abc cannot create employee profile if not an admin.
-     * @principle Enforces document ownership and admin control for employee data.
+     * @allow (get, list): Anyone can read employee profiles.
+     * @allow (create): Anyone can create a new employee profile where the document ID matches the employeeId in the request.
+     * @allow (update, delete): No one can update or delete an employee profile.
+     * @deny (create): If the employeeId in the document does not match the document ID.
+     * @principle Allows public read access to employee profiles, but requires the `employeeId` in the document to match the document ID for `create` operations.
      */
     match /employees/{employeeId} {
-      // Read Rules
-      allow get: if isSignedIn() && isOwner(employeeId);
-      allow list: if false;
-
-      // Write Rules
-      allow create: if isAdmin();
-      allow update: if isAdmin() && isExistingDocument();
-      allow delete: if isAdmin() && isExistingDocument();
+      allow get, list: if true;
+      allow create: if request.resource.data.id == employeeId;
+      allow update, delete: if false;
     }
 
     /**
-     * @description Controls access to feeding records.  Read access is public, but creation is restricted to system components.
+     * @description Stores records of employee feeding events.  Anyone can read or create feeding records.
      * @path /feedingRecords/{recordId}
-     * @allow (get) Any user can read feeding records.
-     * @allow (list) Any user can list feeding records.
-     * @deny (create) Regular users cannot create feeding records.
-     * @principle Allows public read access for reporting but restricts write access.
+     * @allow (get, list): Anyone can read the list of feeding records.
+     * @allow (create): Anyone can create a feeding record.
+     * @allow (update, delete): No one can update or delete a feeding record.
+     * @principle Allows public read access to feeding records and allows everyone to create new records.
      */
     match /feedingRecords/{recordId} {
-      allow get: if true;
-      allow list: if true;
-
-      allow create: if isAdmin(); // Only admins can create feeding records.
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    function isAdmin() {
-        return request.auth.token.admin == true;
-    }
-
-    function isExistingDocument() {
-        return resource != null;
+      allow get, list: if true;
+      allow create: if true;
+      allow update, delete: if false;
     }
   }
 }
