@@ -13,7 +13,7 @@ export type FeedingRecord = {
   employeeId: string;
   employeeName: string;
   department: string;
-  timestamp: Timestamp | Date; // Firestore returns Timestamp, we convert to Date
+  timestamp: Timestamp | Date; // Firestore returns Timestamp, we convert to Date for client use
 };
 
 export type TicketData = {

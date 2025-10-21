@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -7,14 +6,18 @@ import IndividualTicketControl from '@/components/individual-ticket-control';
 import BulkTicketControl from '@/components/bulk-ticket-control';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { mockEmployees } from '@/lib/data';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, doc, writeBatch, getDocs, query as firestoreQuery, where } from 'firebase/firestore';
 
 export default function TicketsPage() {
   const { toast } = useToast();
-  
-  // Use local mock data
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
-  const [areEmployeesLoading, setAreEmployeesLoading] = useState(false);
+  const firestore = useFirestore();
+
+  const employeesRef = useMemoFirebase(() => 
+    firestore ? collection(firestore, 'employees') : null
+  , [firestore]);
+  const { data: employees, isLoading: areEmployeesLoading } = useCollection<Employee>(employeesRef);
+
 
   const departments = useMemo(() => {
     if (!employees) return [];
@@ -22,51 +25,77 @@ export default function TicketsPage() {
     return uniqueDepartments.sort();
   }, [employees]);
 
-  const handleIndividualUpdate = (employeeId: string, amount: number) => {
-    let updatedEmployee: Employee | undefined;
-    setEmployees(prev => prev.map(emp => {
-      if (emp.id === employeeId) {
-        const newBalance = Math.max(0, (emp.ticketBalance || 0) + amount);
-        updatedEmployee = { ...emp, ticketBalance: newBalance };
-        return updatedEmployee;
-      }
-      return emp;
-    }));
+  const handleIndividualUpdate = async (employeeId: string, amount: number) => {
+    if (!firestore) return;
+    const employee = employees?.find(e => e.id === employeeId);
+    if (!employee) return;
 
-    if (updatedEmployee) {
-        toast({
-          title: 'Update Applied',
-          description: `Ticket balance for ${updatedEmployee.name} updated to ${updatedEmployee.ticketBalance}. (Local change)`
-        });
+    try {
+      const batch = writeBatch(firestore);
+      const employeeRef = doc(firestore, 'employees', employeeId);
+      const newBalance = Math.max(0, (employee.ticketBalance || 0) + amount);
+      batch.update(employeeRef, { ticketBalance: newBalance });
+      await batch.commit();
+
+      toast({
+        title: 'Update Applied',
+        description: `Ticket balance for ${employee.name} updated to ${newBalance}.`
+      });
+    } catch (error) {
+      console.error('Error updating individual ticket balance:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Update Failed',
+        description: 'Could not update ticket balance.'
+      });
     }
   };
   
-  const handleBulkUpdate = (department: string, amount: number) => {
-    const employeesToUpdate = department === 'all'
-        ? employees
-        : employees.filter(emp => emp.department === department);
+  const handleBulkUpdate = async (department: string, amount: number) => {
+    if (!firestore) return;
     
-    if (employeesToUpdate.length === 0 && department !== 'all') {
-      toast({
-        variant: 'destructive',
-        title: 'No Employees Found',
-        description: `No employees found in the ${department} department.`
-      });
-      return;
-    }
+    try {
+        const batch = writeBatch(firestore);
+        let collectionRef = collection(firestore, "employees");
+        let q;
 
-    setEmployees(prev => prev.map(emp => {
-      if (department === 'all' || emp.department === department) {
-        const newBalance = Math.max(0, (emp.ticketBalance || 0) + amount);
-        return { ...emp, ticketBalance: newBalance };
-      }
-      return emp;
-    }));
-    
-    toast({
-      title: 'Bulk Update Applied',
-      description: `Ticket balance updates applied for ${department === 'all' ? 'all employees' : `the ${department} department`}. (Local change)`
-    });
+        if (department === 'all') {
+            q = collectionRef;
+        } else {
+            q = firestoreQuery(collectionRef, where("department", "==", department));
+        }
+
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty && department !== 'all') {
+             toast({
+                variant: 'destructive',
+                title: 'No Employees Found',
+                description: `No employees found in the ${department} department.`
+            });
+            return;
+        }
+        
+        querySnapshot.forEach((docSnap) => {
+            const employee = docSnap.data() as Employee;
+            const newBalance = Math.max(0, (employee.ticketBalance || 0) + amount);
+            batch.update(docSnap.ref, { ticketBalance: newBalance });
+        });
+
+        await batch.commit();
+
+        toast({
+            title: 'Bulk Update Applied',
+            description: `Ticket balance updates applied for ${department === 'all' ? 'all employees' : `the ${department} department`}.`
+        });
+    } catch (error) {
+        console.error('Error performing bulk update:', error);
+        toast({
+            variant: 'destructive',
+            title: 'Bulk Update Failed',
+            description: 'Could not update ticket balances.'
+        });
+    }
   };
 
   if (areEmployeesLoading) {

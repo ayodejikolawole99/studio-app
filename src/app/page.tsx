@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -7,7 +6,8 @@ import type { Employee } from '@/lib/types';
 import BiometricScanner from '@/components/biometric-scanner';
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from 'lucide-react';
-import { mockEmployees } from '@/lib/data';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, doc, writeBatch, serverTimestamp, addDoc } from 'firebase/firestore';
 
 function AuthPageContent() {
   const [isScanning, setIsScanning] = useState(false);
@@ -15,10 +15,10 @@ function AuthPageContent() {
   const [authenticatedEmployee, setAuthenticatedEmployee] = useState<Employee | null>(null);
   const router = useRouter();
   const { toast } = useToast();
+  const firestore = useFirestore();
 
-  const [employees, setEmployees] = useState(mockEmployees);
-  const [areEmployeesLoading, setAreEmployeesLoading] = useState(false);
-
+  const employeesRef = useMemoFirebase(() => firestore ? collection(firestore, 'employees') : null, [firestore]);
+  const { data: employees, isLoading: areEmployeesLoading } = useCollection<Employee>(employeesRef);
 
   const handleScan = async () => {
     if (areEmployeesLoading || !employees || employees.length === 0) {
@@ -30,18 +30,15 @@ function AuthPageContent() {
     setIsAuthenticated(false);
     setAuthenticatedEmployee(null);
 
-    // Simulate scanning delay
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // In a real scenario, you'd get the employeeId from the biometric scanner API.
-    // Here, we simulate by picking a random employee who has a ticket balance.
-    const eligibleEmployees = employees.filter(e => e.ticketBalance > 0);
+    const eligibleEmployees = employees.filter(e => (e.ticketBalance || 0) > 0 && e.hasBiometric);
     if (eligibleEmployees.length === 0) {
         setIsScanning(false);
         toast({
             variant: "destructive",
             title: "Authentication Failed",
-            description: "No employees have available tickets.",
+            description: "No eligible employees with tickets and biometrics found.",
         });
         return;
     }
@@ -49,23 +46,38 @@ function AuthPageContent() {
     const randomEmployee = eligibleEmployees[Math.floor(Math.random() * eligibleEmployees.length)];
     const employeeId = randomEmployee.id;
 
-    try {
-        // Simulate a transaction: decrement ticket and create record
-        let updatedEmployee: Employee | null = null;
-        setEmployees(prev => prev.map(emp => {
-            if (emp.id === employeeId) {
-                updatedEmployee = { ...emp, ticketBalance: emp.ticketBalance - 1 };
-                return updatedEmployee;
-            }
-            return emp;
-        }));
+    if (!firestore) {
+      toast({ variant: "destructive", title: "Database Error", description: "Firestore is not available." });
+      setIsScanning(false);
+      return;
+    }
 
-        if (!updatedEmployee) {
-            throw new Error("Failed to find and update employee locally.");
-        }
+    try {
+        const batch = writeBatch(firestore);
+        
+        // 1. Decrement ticket balance
+        const employeeRef = doc(firestore, 'employees', employeeId);
+        const newBalance = (randomEmployee.ticketBalance || 0) - 1;
+        batch.update(employeeRef, { ticketBalance: newBalance });
+
+        // 2. Create a feeding record
+        const feedingRecordRef = collection(firestore, 'feedingRecords');
+        const feedingRecordId = doc(feedingRecordRef).id;
+        const newFeedingRecord = {
+          employeeId: randomEmployee.id,
+          employeeName: randomEmployee.name,
+          department: randomEmployee.department,
+          timestamp: serverTimestamp()
+        };
+        batch.set(doc(feedingRecordRef, feedingRecordId), newFeedingRecord);
+        
+        // Commit the transaction
+        await batch.commit();
+
+        const updatedEmployee: Employee = { ...randomEmployee, ticketBalance: newBalance };
 
         const ticketId = `TICKET-${Date.now()}`;
-
+        
         setIsScanning(false);
         setIsAuthenticated(true);
         setAuthenticatedEmployee(updatedEmployee);
@@ -79,7 +91,7 @@ function AuthPageContent() {
             ticketId: ticketId,
             employeeName: updatedEmployee.name,
             department: updatedEmployee.department,
-            timestamp: new Date().toISOString(), // Use current client time for immediate display
+            timestamp: new Date().toISOString(),
         };
 
         const params = new URLSearchParams({
@@ -89,11 +101,11 @@ function AuthPageContent() {
 
     } catch (error: any) {
         setIsScanning(false);
-        console.error("Local transaction failed: ", error);
+        console.error("Firestore transaction failed: ", error);
         toast({
             variant: "destructive",
             title: "Authentication Failed",
-            description: error.message || "An unexpected error occurred.",
+            description: error.message || "An unexpected error occurred during the transaction.",
         });
     }
   };

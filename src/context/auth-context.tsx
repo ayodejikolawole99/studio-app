@@ -1,49 +1,42 @@
 'use client';
 
-import { createContext, useState, useContext, ReactNode } from 'react';
-import type { User } from '@/lib/types';
+import { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useUser } from '@/firebase'; // Using the hook from firebase/provider
+import type { User as AuthUser } from 'firebase/auth'; // Renaming to avoid conflict
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true); 
+  const { user, isUserLoading, userError } = useUser();
   const router = useRouter();
 
-  // Mock login function for future implementation
-  const login = async (email: string, password: string): Promise<void> => {
-    setLoading(true);
-    console.log(`Login attempt with ${email}`);
-    // In a real app, you would authenticate here and set the user.
-    // For now, we'll simulate a failed login.
-    setLoading(false);
-    // On successful login, you would call:
-    // setUser({ id: '...', name: '...', email: '...', role: 'ADMIN' });
-    // router.push('/admin');
-  };
-
-  // Mock logout function
+  // Mock logout function for now
   const logout = async (): Promise<void> => {
-    setUser(null);
+    // In a real app with password auth, you'd call signOut(auth)
     console.log('User logged out');
     router.push('/login');
   };
 
-  // Simulate initial auth check
-  useState(() => {
-    setLoading(false);
-  });
+  // Effect to handle routing based on auth state
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      // If loading is finished and there's no user, redirect to login
+      // Note: with anonymous auth, a user should almost always exist.
+      // This is a safeguard.
+      router.push('/login');
+    }
+  }, [user, isUserLoading, router]);
+
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading: isUserLoading, logout }}>
       {children}
     </AuthContext.Provider>
   );

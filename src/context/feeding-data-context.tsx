@@ -1,9 +1,9 @@
-
 'use client';
 import { createContext, ReactNode, useContext, useState, useMemo } from 'react';
 import type { FeedingRecord } from '@/lib/types';
-import { mockFeedingRecords } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, addDoc, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
 
 interface FeedingDataContextType {
     feedingRecords: FeedingRecord[];
@@ -15,34 +15,40 @@ export const FeedingDataContext = createContext<FeedingDataContextType | undefin
 
 export const FeedingDataProvider = ({ children }: { children: ReactNode }) => {
     const { toast } = useToast();
+    const firestore = useFirestore();
+
+    const feedingRecordsRef = useMemoFirebase(() => 
+        firestore ? query(collection(firestore, 'feedingRecords'), orderBy('timestamp', 'desc'), limit(100)) : null
+    , [firestore]);
     
-    const [feedingRecords, setFeedingRecords] = useState<FeedingRecord[]>(mockFeedingRecords);
-    const [isLoading, setIsLoading] = useState(false);
+    const { data: feedingRecords, isLoading } = useCollection<FeedingRecord>(feedingRecordsRef);
 
     // This function is for testing/demo purposes.
-    const addMockRecord = () => {
-        const newRecord: FeedingRecord = {
-            id: `MOCK-${Date.now()}`,
-            employeeId: `E-MOCK-${Math.floor(Math.random() * 100)}`,
-            employeeName: "Mock User",
-            department: "Testing",
-            timestamp: new Date(),
-        };
-
-        setFeedingRecords(prev => [newRecord, ...prev]);
-
-        toast({ title: 'Success', description: 'Mock feeding record added locally.' });
+    const addMockRecord = async () => {
+        if (!firestore) return;
+        try {
+            await addDoc(collection(firestore, 'feedingRecords'), {
+                employeeId: `MOCK-${Math.floor(Math.random() * 100)}`,
+                employeeName: "Mock User",
+                department: "Testing",
+                timestamp: serverTimestamp(),
+            });
+            toast({ title: 'Success', description: 'Mock feeding record added to Firestore.' });
+        } catch (error) {
+            console.error("Error adding mock record: ", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not add mock record.' });
+        }
     };
     
     const recordsWithDate = useMemo(() => {
         if (!feedingRecords) return [];
         return feedingRecords.map(r => ({
             ...r,
-            timestamp: new Date(r.timestamp), // Ensure timestamp is a Date object
+            // Convert Firestore Timestamp to JS Date object
+            timestamp: (r.timestamp as any)?.toDate ? (r.timestamp as any).toDate() : new Date(),
         }));
     }, [feedingRecords]);
     
-
     return (
         <FeedingDataContext.Provider value={{ feedingRecords: recordsWithDate, addMockRecord, isLoading }}>
             {children}

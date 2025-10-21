@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -34,19 +33,20 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
-import { mockEmployees } from '@/lib/data';
-
+import { useCollection, useFirestore, useMemoFirebase, setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { collection, doc, setDoc, deleteDoc } from 'firebase/firestore';
 
 export default function StaffList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditOpen, setEditOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const { toast } = useToast();
-  
-  // Use local mock data
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
-  const [isLoading, setIsLoading] = useState(false);
+  const firestore = useFirestore();
 
+  const employeesRef = useMemoFirebase(() => 
+    firestore ? collection(firestore, 'employees') : null
+  , [firestore]);
+  const { data: employees, isLoading } = useCollection<Employee>(employeesRef);
 
   const filteredEmployees = useMemo(() => {
       if (!employees) return [];
@@ -67,15 +67,21 @@ export default function StaffList() {
     setEditOpen(true);
   };
   
-  const handleDelete = (employeeId: string) => {
-    setEmployees(prev => prev.filter(emp => emp.id !== employeeId));
-    toast({ title: 'Success', description: 'Employee has been deleted from local view.'});
+  const handleDelete = async (employeeId: string) => {
+    if (!firestore) return;
+    try {
+      await deleteDoc(doc(firestore, 'employees', employeeId));
+      toast({ title: 'Success', description: 'Employee has been deleted.'});
+    } catch (error) {
+      console.error("Error deleting employee: ", error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not delete employee.' });
+    }
   };
 
-  const handleSave = (employeeData: Employee, isNew: boolean) => {
-    if (isNew) {
-      // Check if employee ID already exists
-      if (employees.some(e => e.id === employeeData.id)) {
+  const handleSave = async (employeeData: Employee, isNew: boolean) => {
+    if (!firestore) return;
+    try {
+      if (isNew && employees?.some(e => e.id === employeeData.id)) {
         toast({
           variant: "destructive",
           title: "Error",
@@ -83,15 +89,16 @@ export default function StaffList() {
         });
         return;
       }
-      setEmployees(prev => [employeeData, ...prev]);
-    } else {
-      setEmployees(prev => prev.map(emp => emp.id === employeeData.id ? employeeData : emp));
+      const employeeRef = doc(firestore, 'employees', employeeData.id);
+      await setDoc(employeeRef, employeeData, { merge: true });
+      toast({
+          title: "Success",
+          description: `Employee ${isNew ? 'added' : 'updated'} successfully.`,
+      });
+    } catch (error) {
+       console.error("Error saving employee: ", error);
+       toast({ variant: 'destructive', title: 'Error', description: 'Could not save employee data.' });
     }
-
-    toast({
-        title: "Success",
-        description: `Employee ${isNew ? 'added' : 'updated'} in local view. Changes are not saved.`,
-    });
   };
 
   return (
