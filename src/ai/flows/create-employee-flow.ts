@@ -7,9 +7,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { initializeApp, getApps, getApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
-import { firebaseConfig } from '@/firebase/config';
+import * as admin from 'firebase-admin';
 
 // The input schema is now defined in the client component that calls this flow.
 const CreateEmployeeInputSchema = z.object({
@@ -33,12 +31,23 @@ export async function createEmployee(employeeData: CreateEmployeeInput): Promise
 
 // Server-side Firebase initialization using Admin SDK
 function initializeServerFirebase() {
-  if (getApps().some(app => app.name === 'server-flow')) {
-    return getApp('server-flow');
+  if (admin.apps.length) {
+    return admin.app();
   }
-  // This uses the Admin SDK, which has elevated privileges.
-  // It will automatically use the application's default credentials in this environment.
-  return initializeApp({ projectId: firebaseConfig.projectId }, 'server-flow');
+
+  // Ensure environment variables are loaded. In Next.js, this is typically handled automatically.
+  if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
+      throw new Error('Firebase Admin SDK environment variables are not set.');
+  }
+
+  return admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      // The private key needs to be properly formatted.
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    }),
+  });
 }
 
 
@@ -51,7 +60,7 @@ const createEmployeeFlow = ai.defineFlow(
   async (employeeData) => {
     // We need to initialize Firebase on the server side for this flow.
     const serverApp = initializeServerFirebase();
-    const firestore = getFirestore(serverApp);
+    const firestore = admin.firestore(serverApp);
     
     // The document ID will be the employeeId provided from the client.
     const employeeRef = firestore.collection('employees').doc(employeeData.employeeId);
