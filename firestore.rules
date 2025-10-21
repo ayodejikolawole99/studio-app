@@ -1,66 +1,62 @@
 /**
- * @fileOverview Firestore Security Rules for the Canteen System.
+ * @fileoverview Firestore Security Rules for the Canteen System.
  *
  * Core Philosophy:
- * This ruleset prioritizes security and data ownership, enforcing strict controls on data access.
- * The ruleset is designed for prototyping, so data validation is intentionally relaxed except where necessary for authorization.
+ * This ruleset prioritizes security and data integrity, focusing on controlling access to employee records and feeding records.
+ * Data access is generally restricted, and write operations require specific conditions to be met.
  *
  * Data Structure:
- * - /employees/{employeeId}: Stores employee profiles, with the employeeId used as the document ID. Only the employee themselves can read or write their own profile.
- * - /feedingRecords/{recordId}: Stores a log of feeding events. Intended for system-level logging, write access is completely denied, while read access is public for reporting purposes.
+ * - /employees/{employeeId}: Stores employee profiles, with the employeeId used as the document ID.
+ * - /feedingRecords/{recordId}: Stores records of meal consumption events.
  *
  * Key Security Decisions:
- * - Employees can only access their own employee document. No listing of all employees is allowed.
- * - Feeding records are publicly readable but not writable from the client.
+ * - Employees collection is not listable.
+ * - Feeding records are publicly readable, but creation and modification are restricted to authorized roles.
+ * - The schema is not strictly enforced to allow for rapid iteration, but key fields required for authorization are validated on write.
  *
  * Denormalization for Authorization:
- * - The security rules do not rely on denormalization.
+ *  N/A in this simplified model
  *
  * Structural Segregation:
- * - The rules leverage separate collections for employee profiles (private, user-specific) and feeding records (public logging).
+ *  N/A in this simplified model
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to employee profiles. Each employee can only read and write their own profile.
+     * @description Protects the employee profiles. Only authenticated users can read, but no listing.
      * @path /employees/{employeeId}
-     * @allow (create, update, delete) auth.uid == employeeId. Allows an employee to create, update, or delete their own profile.
-     * @allow (get) auth.uid == employeeId. Allows an employee to read their own profile.
-     * @deny (create, update, delete) auth.uid != employeeId. Prevents employees from modifying other profiles.
-     * @deny list: Listing all employees is not permitted.
-     * @principle Enforces strict user-ownership for employee profiles.
+     * @allow (get) Authenticated user can get any profile.
+     * @deny (list) No one can list all profiles.
+     * @allow (create) No one can create a profile.
+     * @allow (update) No one can update a profile.
+     * @allow (delete) No one can delete a profile.
+     * @principle Restricts access to employee data.
      */
     match /employees/{employeeId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-      function isOwner(employeeId) {
-        return request.auth.uid == employeeId;
-      }
-      function isExistingOwner(employeeId) {
-          return isOwner(employeeId) && exists(resource);
-      }
-
-      allow get: if isOwner(employeeId);
+      allow get: if isSignedIn();
       allow list: if false;
-
-      allow create: if isSignedIn() && isOwner(employeeId);
-      allow update: if isExistingOwner(employeeId);
-      allow delete: if isExistingOwner(employeeId);
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Controls access to feeding records. These records are publicly readable, but only writeable by backend services.
+     * @description Allows public read access to feeding records, but restricts write access.
      * @path /feedingRecords/{recordId}
-     * @allow get, list: if true. Allows anyone to read feeding records.
-     * @deny create, update, delete: No client-side writes allowed.
-     * @principle Allows public read access for feeding records.
+     * @allow (get, list) Any user can read feeding records.
+     * @deny (create, update, delete) Only authorized users can create, update or delete records (TODO: implement auth).
+     * @principle Allows public data for reporting while restricting modification to authorized users.
      */
     match /feedingRecords/{recordId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if false; // TODO: Add authorization logic for creating/modifying feeding records.
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
     }
   }
 }
