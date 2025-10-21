@@ -43,10 +43,16 @@ export default function TicketsPage() {
       });
     } catch (error) {
       console.error('Error updating individual ticket balance:', error);
+      const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
+      const permissionError = new FirestorePermissionError({
+          path: `employees/${employeeId}`,
+          operation: 'update',
+      });
+      errorEmitter.emit('permission-error', permissionError);
       toast({
         variant: 'destructive',
         title: 'Update Failed',
-        description: 'Could not update ticket balance.'
+        description: 'Could not update ticket balance. Check permissions.'
       });
     }
   };
@@ -90,10 +96,16 @@ export default function TicketsPage() {
         });
     } catch (error) {
         console.error('Error performing bulk update:', error);
+        const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
+        const permissionError = new FirestorePermissionError({
+            path: 'employees',
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
         toast({
             variant: 'destructive',
             title: 'Bulk Update Failed',
-            description: 'Could not update ticket balances.'
+            description: 'Could not update ticket balances. Check permissions.'
         });
     }
   };

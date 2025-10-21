@@ -7,7 +7,7 @@ import BiometricScanner from '@/components/biometric-scanner';
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, writeBatch, serverTimestamp, addDoc } from 'firebase/firestore';
+import { collection, doc, writeBatch, serverTimestamp, addDoc, updateDoc } from 'firebase/firestore';
 
 function AuthPageContent() {
   const [isScanning, setIsScanning] = useState(false);
@@ -53,14 +53,21 @@ function AuthPageContent() {
     }
 
     try {
-        const batch = writeBatch(firestore);
-        
-        // 1. Decrement ticket balance
         const employeeRef = doc(firestore, 'employees', employeeId);
         const newBalance = (randomEmployee.ticketBalance || 0) - 1;
-        batch.update(employeeRef, { ticketBalance: newBalance });
+        
+        // Use a non-blocking update for the employee's ticket balance
+        updateDoc(employeeRef, { ticketBalance: newBalance }).catch(async (serverError) => {
+            const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
+            const permissionError = new FirestorePermissionError({
+                path: employeeRef.path,
+                operation: 'update',
+                requestResourceData: { ticketBalance: newBalance },
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
 
-        // 2. Create a feeding record
+        // Use a non-blocking add for the feeding record
         const feedingRecordRef = collection(firestore, 'feedingRecords');
         const newFeedingRecord = {
           employeeId: randomEmployee.id,
@@ -68,10 +75,15 @@ function AuthPageContent() {
           department: randomEmployee.department,
           timestamp: serverTimestamp()
         };
-        addDoc(feedingRecordRef, newFeedingRecord);
-        
-        // Commit the transaction
-        await batch.commit();
+        addDoc(feedingRecordRef, newFeedingRecord).catch(async (serverError) => {
+            const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
+            const permissionError = new FirestorePermissionError({
+                path: feedingRecordRef.path,
+                operation: 'create',
+                requestResourceData: newFeedingRecord,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
 
         const updatedEmployee: Employee = { ...randomEmployee, ticketBalance: newBalance };
 
@@ -100,11 +112,11 @@ function AuthPageContent() {
 
     } catch (error: any) {
         setIsScanning(false);
-        console.error("Firestore transaction failed: ", error);
+        console.error("An unexpected error occurred: ", error);
         toast({
             variant: "destructive",
-            title: "Authentication Failed",
-            description: error.message || "An unexpected error occurred during the transaction.",
+            title: "Operation Failed",
+            description: error.message || "An unexpected error occurred.",
         });
     }
   };

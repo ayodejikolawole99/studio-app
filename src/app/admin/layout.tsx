@@ -14,7 +14,7 @@ import {
   SidebarTrigger,
   SidebarInset,
 } from '@/components/ui/sidebar';
-import { Users, Ticket, BarChart3, Settings, LayoutDashboard } from 'lucide-react';
+import { Users, Ticket, BarChart3, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
@@ -55,7 +55,6 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                   </SidebarMenu>
 
                   <SidebarFooter>
-                      {/* User profile removed */}
                   </SidebarFooter>
               </SidebarContent>
           </Sidebar>
@@ -63,12 +62,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
               <header className="flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-sm sm:h-16 md:px-6">
                   <SidebarTrigger className="md:hidden" />
                   <div className="flex-1">
-                      {/* Header content can go here */}
                   </div>
-                  <Button variant="ghost" size="icon">
-                      <Settings />
-                      <span className="sr-only">Settings</span>
-                  </Button>
               </header>
               <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
           </SidebarInset>

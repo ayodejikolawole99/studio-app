@@ -69,7 +69,15 @@ export default function StaffList() {
   const handleDelete = async (employeeId: string) => {
     if (!firestore) return;
     try {
-      await deleteDoc(doc(firestore, 'employees', employeeId));
+      const employeeRef = doc(firestore, 'employees', employeeId);
+      deleteDoc(employeeRef).catch(async (serverError) => {
+          const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
+          const permissionError = new FirestorePermissionError({
+              path: employeeRef.path,
+              operation: 'delete',
+          });
+          errorEmitter.emit('permission-error', permissionError);
+      });
       toast({ title: 'Success', description: 'Employee has been deleted.'});
     } catch (error) {
       console.error("Error deleting employee: ", error);
@@ -89,7 +97,15 @@ export default function StaffList() {
         return;
       }
       const employeeRef = doc(firestore, 'employees', employeeData.id);
-      await setDoc(employeeRef, employeeData, { merge: true });
+      setDoc(employeeRef, employeeData, { merge: true }).catch(async (serverError) => {
+          const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
+          const permissionError = new FirestorePermissionError({
+              path: employeeRef.path,
+              operation: isNew ? 'create' : 'update',
+              requestResourceData: employeeData,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+      });
       toast({
           title: "Success",
           description: `Employee ${isNew ? 'added' : 'updated'} successfully.`,
