@@ -18,8 +18,9 @@ import { Fingerprint, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFirestore } from '@/firebase';
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
+import { createEmployee } from '@/ai/flows/create-employee-flow';
 
 const departments = ["Production", "Logistics", "Quality Assurance", "Human Resources", "Maintenance", "IT", "Finance"];
 
@@ -41,6 +42,7 @@ export function StaffEditDialog({
   const [department, setDepartment] = useState('');
   const [biometricTemplate, setBiometricTemplate] = useState<string | undefined>(undefined);
   const [isScanning, startBiometricScan] = useTransition();
+  const [isSaving, startSaving] = useTransition();
   const [isNewEmployee, setIsNewEmployee] = useState(false);
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -75,62 +77,59 @@ export function StaffEditDialog({
     });
   };
 
-  const handleSave = async () => {
-    if (!name || !employeeId || !department) {
-      toast({ variant: "destructive", title: "Validation Error", description: "Please fill out all fields, including Employee Number." });
-      return;
-    }
-    if (!firestore) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
-        return;
-    }
+  const handleSave = () => {
+     startSaving(async () => {
+        if (!name || !employeeId || !department) {
+            toast({ variant: "destructive", title: "Validation Error", description: "Please fill out all fields, including Employee Number." });
+            return;
+        }
+        if (!firestore) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
+            return;
+        }
 
-    const employeeRef = doc(firestore, 'employees', employeeId);
-    
-    try {
-      if (isNewEmployee) {
-        // Step 1: Create an empty document shell. This is a workaround for restrictive environments.
-        await setDoc(employeeRef, {}); 
-        
-        // Step 2: Update the new document with the actual data.
-        const newData: Omit<Employee, 'id'> = {
-          name,
-          department,
-          employeeId,
-          biometricTemplate: biometricTemplate || '',
-          ticketBalance: 0,
-        };
-        await updateDoc(employeeRef, newData);
-      } else {
-        // For existing employees, just merge the updated data.
-        const updatedData: Partial<Employee> = {
-          name,
-          department,
-          ...(biometricTemplate !== undefined && { biometricTemplate }),
-        };
-        await updateDoc(employeeRef, updatedData);
-      }
+        try {
+            if (isNewEmployee) {
+                const newEmployeeData: Omit<Employee, 'id'> = {
+                    name,
+                    department,
+                    employeeId,
+                    biometricTemplate: biometricTemplate || '',
+                    ticketBalance: 0,
+                };
+                await createEmployee(newEmployeeData);
+            } else {
+                const employeeRef = doc(firestore, 'employees', employeeId);
+                const updatedData: Partial<Employee> = {
+                    name,
+                    department,
+                    ...(biometricTemplate !== undefined && { biometricTemplate }),
+                };
+                await updateDoc(employeeRef, updatedData);
+            }
 
-      toast({
-          title: "Success",
-          description: `Employee ${isNewEmployee ? 'added' : 'updated'} successfully.`,
-      });
-      onSaveSuccess();
-    } catch (error) {
-       console.error("[Inspect][StaffEditDialog] Error saving employee: ", error);
-       const permissionError = new FirestorePermissionError({
-           path: employeeRef.path, 
-           operation: isNewEmployee ? 'create' : 'update',
-           requestResourceData: { name, department, employeeId },
-       });
-       errorEmitter.emit('permission-error', permissionError);
-       toast({ variant: 'destructive', title: 'Error', description: 'Could not save employee data.' });
-    }
+            toast({
+                title: "Success",
+                description: `Employee ${isNewEmployee ? 'added' : 'updated'} successfully.`,
+            });
+            onSaveSuccess();
+        } catch (error) {
+            console.error("[Inspect][StaffEditDialog] Error saving employee: ", error);
+            const employeeRef = doc(firestore, 'employees', employeeId);
+            const permissionError = new FirestorePermissionError({
+                path: employeeRef.path,
+                operation: isNewEmployee ? 'create' : 'update',
+                requestResourceData: { name, department, employeeId },
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not save employee data.' });
+        }
+    });
   };
 
   const hasBiometric = !!biometricTemplate;
   const dialogTitle = isNewEmployee ? 'Add New Staff' : 'Edit Staff';
-  const dialogDescription = isNewEmployee 
+  const dialogDescription = isNewEmployee
     ? "Fill in the details for the new employee."
     : "Update the details for this employee.";
 
@@ -189,8 +188,11 @@ export function StaffEditDialog({
         </div>
 
         <DialogFooter>
-          <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-          <Button onClick={handleSave}>Save Changes</Button>
+          <DialogClose asChild><Button variant="outline" disabled={isSaving}>Cancel</Button></DialogClose>
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save Changes
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
