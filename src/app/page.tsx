@@ -7,14 +7,12 @@ import BiometricScanner from '@/components/biometric-scanner';
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from 'lucide-react';
 import { useFirestore } from '@/firebase';
-import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { Input } from '@/components/ui/input';
+import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
 
 function AuthPageContent() {
   console.log('[Inspect][AuthPage] Component rendered');
-  const [employeeId, setEmployeeId] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authenticatedEmployee, setAuthenticatedEmployee] = useState<Employee | null>(null);
@@ -23,11 +21,8 @@ function AuthPageContent() {
   const firestore = useFirestore();
 
   const handleScan = async () => {
-    console.log(`[Inspect][AuthPage] handleScan called for employee ID: ${employeeId}`);
-    if (!employeeId) {
-      toast({ variant: "destructive", title: "Input Required", description: "Please enter your Employee ID." });
-      return;
-    }
+    console.log(`[Inspect][AuthPage] handleScan initiated`);
+    
     if (!firestore) {
       console.error('[Inspect][AuthPage] Firestore not available for scan.');
       toast({ variant: "destructive", title: "System Not Ready", description: "Database is not connected." });
@@ -39,42 +34,39 @@ function AuthPageContent() {
     setAuthenticatedEmployee(null);
 
     try {
-      console.log(`[Inspect][AuthPage] Getting document for employee: employees/${employeeId}`);
-      const employeeRef = doc(firestore, 'employees', employeeId);
+      console.log('[Inspect][AuthPage] Simulating biometric scan and fetching enrolled employee...');
+      // In a real app, the scanner would return a unique identifier for the fingerprint.
+      // Here, we simulate this by querying for one enrolled employee to authenticate.
+      const employeesRef = collection(firestore, 'employees');
+      const q = query(employeesRef, where("biometricTemplate", "!=", null), limit(1));
       
-      const employeeSnap = await getDoc(employeeRef);
-      
-      console.log(`[Inspect][AuthPage] Document snapshot received. Employee Exists: ${employeeSnap.exists()}`);
+      const querySnapshot = await getDocs(q);
 
-      if (!employeeSnap.exists()) {
-        toast({ variant: "destructive", title: "Authentication Failed", description: "Employee ID not found." });
-        setIsScanning(false);
-        return;
-      }
-      
-      const employeeData = { ...employeeSnap.data(), id: employeeSnap.id } as Employee;
-      console.log(`[Inspect][AuthPage] Employee data:`, employeeData);
-      
-      // Check if biometricTemplate is present, indicating biometric enrollment
-      if (!employeeData.biometricTemplate) {
-        toast({ variant: "destructive", title: "Authentication Failed", description: "No biometric data found for this employee." });
+      if (querySnapshot.empty) {
+        toast({ variant: "destructive", title: "Authentication Failed", description: "No enrolled employees found in the system." });
         setIsScanning(false);
         return;
       }
 
+      const employeeDoc = querySnapshot.docs[0];
+      const employeeData = { ...employeeDoc.data(), id: employeeDoc.id } as Employee;
+      const employeeRef = doc(firestore, 'employees', employeeData.id);
+
+      console.log(`[Inspect][AuthPage] Matched employee:`, employeeData);
+      
       if ((employeeData.ticketBalance || 0) <= 0) {
         toast({ variant: "destructive", title: "Authentication Failed", description: "You have no meal tickets left." });
         setIsScanning(false);
         return;
       }
 
-      console.log('[Inspect][AuthPage] Simulating biometric scan...');
-      // In a real app, you'd use the template from the employee document
-      // and compare it with the scanner output.
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      console.log('[Inspect][AuthPage] Biometric match found. Proceeding with ticket generation.');
+      // Simulate verification delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       const newBalance = (employeeData.ticketBalance || 0) - 1;
       const updateData = { ticketBalance: newBalance };
+      
       console.log(`[Inspect][AuthPage] Initiating non-blocking update for ticket balance to ${newBalance}`);
       updateDoc(employeeRef, updateData).catch(async (serverError) => {
           console.error(`[Inspect][AuthPage] Firestore error during ticket balance update:`, serverError);
@@ -126,14 +118,15 @@ function AuthPageContent() {
     } catch (error: any) {
         console.error(`[Inspect][AuthPage] Error during handleScan:`, error);
         setIsScanning(false);
+        // Since we don't have a specific employee ID at the start, we can't create a detailed error path
         const permissionError = new FirestorePermissionError({
-            path: `employees/${employeeId}`, operation: 'get',
+            path: `employees`, operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
         toast({
             variant: "destructive",
             title: "Operation Failed",
-            description: "Could not verify employee. Check permissions or employee ID.",
+            description: "Could not verify employee. Check permissions or network.",
         });
     }
   };
@@ -152,18 +145,10 @@ function AuthPageContent() {
                   Canteen Biometric
                   </h1>
                   <p className="mt-2 text-lg text-muted-foreground">
-                    Enter your ID and scan your fingerprint to generate a meal ticket.
+                    Scan your fingerprint to generate a meal ticket.
                   </p>
               </header>
-              <div className="space-y-4 mb-4">
-                <Input 
-                  type="text"
-                  placeholder="Enter Your Employee ID"
-                  value={employeeId}
-                  onChange={(e) => setEmployeeId(e.target.value.toUpperCase())}
-                  className="text-center text-lg h-12"
-                />
-              </div>
+              
               <BiometricScanner
                   onScan={handleScan}
                   isScanning={isScanning}
