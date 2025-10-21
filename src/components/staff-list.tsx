@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -33,8 +33,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore } from '@/firebase';
-import { collection, doc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, doc, deleteDoc, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
 
 export default function StaffList() {
@@ -42,42 +42,29 @@ export default function StaffList() {
   const [isEditOpen, setEditOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isSearching, startSearchTransition] = useTransition();
-  const [searchResults, setSearchResults] = useState<Employee[]>([]);
   const { toast } = useToast();
   const firestore = useFirestore();
 
-  const handleSearch = () => {
-    if (!firestore) {
-        console.error('[Inspect][StaffList] Firestore not available for search.');
-        return;
-    }
-    startSearchTransition(async () => {
-      try {
-        const employeesRef = collection(firestore, 'employees');
-        let q;
-        if (searchTerm.trim() === '') {
-          q = query(employeesRef);
-        } else {
-          q = query(employeesRef, where('name', '>=', searchTerm), where('name', '<=', searchTerm + '\uf8ff'));
-        }
-        const querySnapshot = await getDocs(q);
-        const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-        setSearchResults(results);
-        if (results.length === 0 && searchTerm.trim() !== '') {
-          toast({ title: 'No Employees Found', description: `No staff found with the name "${searchTerm}".` });
-        }
-      } catch (e) {
-        console.error("[Inspect][StaffList] Error searching employees: ", e);
-        const permissionError = new FirestorePermissionError({
-            path: 'employees', 
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        toast({ variant: 'destructive', title: 'Search Failed', description: 'Could not perform search.' });
-      }
-    });
-  }
+  const employeesRef = useMemoFirebase(() =>
+    firestore ? collection(firestore, 'employees') : null
+  , [firestore]);
   
+  const { data: employees, isLoading: areEmployeesLoading, error } = useCollection<Employee>(employeesRef);
+
+  useEffect(() => {
+    // This effect will run once on mount to fetch all employees initially
+    // as useCollection is now active. Subsequent searches will be filtered client-side.
+  }, []);
+
+  const handleSearch = () => {
+    // Search is now client-side, this function is kept for potential future server-side search needs
+    // or to trigger a re-fetch if data source changes. For now, filtering happens in `filteredEmployees`.
+  }
+
+  const filteredEmployees = employees?.filter(employee =>
+    employee.name.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
+
   const handleAddNew = () => {
     const newEmployee: Employee = {
       id: '', // ID will be set in the dialog from the employeeId field
@@ -105,7 +92,6 @@ export default function StaffList() {
     
     deleteDoc(employeeRef)
       .then(() => {
-        handleSearch(); // Refresh search results after delete
         toast({ title: 'Success', description: 'Employee has been deleted.'});
       })
       .catch((error) => {
@@ -115,12 +101,12 @@ export default function StaffList() {
             operation: 'delete',
         });
         errorEmitter.emit('permission-error', permissionError);
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not delete employee.' });
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not delete employee. You may not have permission.' });
       });
   };
 
   const onSuccessfulSave = () => {
-      handleSearch(); // Refresh the current search to show updated data
+      // Data will refresh automatically due to useCollection hook
       setEditOpen(false);
   }
 
@@ -137,17 +123,11 @@ export default function StaffList() {
           </div>
           <div className="flex gap-2 mt-4">
             <Input
-              placeholder="Search by name or leave blank to show all..."
+              placeholder="Search by name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />
-            <Button onClick={handleSearch} disabled={isSearching}>
-              {isSearching ? <Loader2 className="animate-spin" /> : <Search />}
-              <span className="ml-2 hidden sm:inline">Search</span>
-            </Button>
           </div>
-           <p className="text-xs text-muted-foreground pt-1">Note: Search is case-sensitive and finds names that start with the search term.</p>
         </CardHeader>
         <CardContent>
             <Table>
@@ -161,14 +141,20 @@ export default function StaffList() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isSearching ? (
+                {areEmployeesLoading ? (
                    <TableRow>
                       <TableCell colSpan={5} className="h-24 text-center">
                         <Loader2 className="mx-auto h-6 w-6 animate-spin" />
                       </TableCell>
                     </TableRow>
-                ) : searchResults.length > 0 ? (
-                  searchResults.map((employee) => (
+                ) : error ? (
+                   <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center text-destructive">
+                        Error: Could not load staff data. You may not have permission to view this list.
+                      </TableCell>
+                    </TableRow>
+                ) : filteredEmployees.length > 0 ? (
+                  filteredEmployees.map((employee) => (
                     <TableRow key={employee.id}>
                       <TableCell><span className="font-medium">{employee.name}</span></TableCell>
                       <TableCell className="text-muted-foreground">{employee.id}</TableCell>
@@ -183,18 +169,18 @@ export default function StaffList() {
                             <DropdownMenuItem onClick={() => handleEdit(employee)}>Edit</DropdownMenuItem>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Delete</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600">Delete</DropdownMenuItem>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    This will permanently delete the employee record. This action cannot be undone.
+                                    This will permanently delete the employee record for {employee.name}. This action cannot be undone.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDelete(employee.id)}>Continue</AlertDialogAction>
+                                  <AlertDialogAction onClick={() => handleDelete(employee.id)} className="bg-destructive hover:bg-destructive/90">Continue</AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
@@ -206,7 +192,7 @@ export default function StaffList() {
                 ) : (
                     <TableRow>
                       <TableCell colSpan={5} className="h-24 text-center">
-                        No employees found. Try searching or adding new staff.
+                        No employees found. Try a different search or add new staff.
                       </TableCell>
                     </TableRow>
                   )}
