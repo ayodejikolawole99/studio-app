@@ -1,89 +1,51 @@
-/**
- * @fileoverview Firestore Security Rules for the Canteen System.
- *
- * Core Philosophy:
- * This ruleset prioritizes security above all else by enforcing strict, explicit access control.
- * It avoids overly permissive "default allow" rules and requires a clear authorization strategy for every operation.
- * In prototyping mode, data validation is relaxed to allow for schema iteration.
- *
- * Data Structure:
- * - /employees/{employeeId}: Employee profiles, where {employeeId} is the employee's official ID.
- * - /feedingRecords/{recordId}: Records of meal consumption events.
- * - /biometrics/{employeeId}: Stores biometric data for each employee, where {employeeId} is the employee's ID.
- *
- * Key Security Decisions:
- * - Employees can only create their profiles using their employee ID; other users can not.
- * - No listing operations are allowed on any collection to prevent unauthorized data discovery.
- * - Feeding records are currently publicly readable, but write operations are restricted for future auditing.
- * - Biometric data write operations are denied for now because it's unclear who should be able to write this data.
- *
- * Denormalization for Authorization:
- *  N/A - No denormalization is used in this ruleset for authorization decisions. All authorization is done by referencing `request.auth.uid`.
- *
- * Structural Segregation:
- * N/A - This ruleset does not segregate data into private and public collections.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to employee profiles.
+     * @description Controls access to employee profile documents.
      * @path /employees/{employeeId}
-     * @allow (create) User with UID 'EMP001' can create a profile at /employees/EMP001.
-     * @deny (create) User with UID 'EMP002' cannot create a profile at /employees/EMP001.
-     * @deny (update) No one can update an employee profile.
-     * @deny (delete) No one can delete an employee profile.
-     * @deny (get) No one can get a specific employee profile.
-     * @deny (list) No one can list employee profiles.
-     * @principle Enforces document ownership on create, no read or update is possible.
+     * @allow (create) User with UID 'EMP001' can create document '/employees/EMP001' if request.auth.uid == 'EMP001'.
+     * @deny (create) User with UID 'USR002' cannot create document '/employees/EMP001' because the UIDs do not match.
+     * @allow (get) User with UID 'EMP001' can read document '/employees/EMP001'.
+     * @deny (get) User with UID 'USR002' cannot read document '/employees/EMP001'.
+     * @allow (update) User with UID 'EMP001' can update document '/employees/EMP001'.
+     * @deny (update) User with UID 'USR002' cannot update document '/employees/EMP001'.
+     * @allow (delete) User with UID 'EMP001' can delete document '/employees/EMP001'.
+     * @deny (delete) User with UID 'USR002' cannot delete document '/employees/EMP001'.
+     * @principle Enforces document ownership for all operations on employee profiles.
      */
     match /employees/{employeeId} {
-      allow get: if false;
-      allow list: if false;
-      allow create: if isSignedIn() && request.auth.uid == employeeId;
-      allow update: if false;
-      allow delete: if false;
+      // Verified identity
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      // Is owner
+      function isOwner(employeeId) {
+        return request.auth.uid == employeeId;
+      }
+
+      allow get: if isSignedIn() && isOwner(employeeId);
+      allow list: if false; // Listing employees is not permitted.
+
+      allow create: if isSignedIn() && isOwner(employeeId);
+      allow update: if isSignedIn() && isOwner(employeeId);
+      allow delete: if isSignedIn() && isOwner(employeeId);
     }
 
     /**
-     * @description Controls access to feeding records.
+     * @description Controls access to feeding record documents.
      * @path /feedingRecords/{recordId}
-     * @allow (get) Any user can read a feeding record.
-     * @allow (list) Any user can list feeding records.
-     * @deny (create) No one can create a feeding record.
-     * @deny (update) No one can update a feeding record.
-     * @deny (delete) No one can delete a feeding record.
-     * @principle Allows public read-only access to feeding records; write operations are disabled.
+     * @allow (get) Any user can read a feeding record document.
+     * @deny (create) No user can create a feeding record document.
+     * @deny (update) No user can update a feeding record document.
+     * @deny (delete) No user can delete a feeding record document.
+     * @principle Allows public read access for the feedingRecords but restricts all write access.
      */
     match /feedingRecords/{recordId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if true;
+      allow create, update, delete: if false; // Writes are only allowed from the server-side via admin SDK.
     }
-
-    /**
-     * @description Controls access to biometric data.
-     * @path /biometrics/{employeeId}
-     * @deny (create) No one can create a biometric record.
-     * @deny (update) No one can update a biometric record.
-     * @deny (delete) No one can delete a biometric record.
-     * @deny (get) No one can get a specific biometric record.
-     * @deny (list) No one can list biometric records.
-     * @principle  No access granted yet to biometric data.
-     */
-    match /biometrics/{employeeId} {
-      allow get: if false;
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-  }
-
-  function isSignedIn() {
-    return request.auth != null;
   }
 }
