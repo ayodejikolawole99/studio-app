@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
 function AuthPageContent() {
+  console.log('[Inspect][AuthPage] Component rendered');
   const [employeeId, setEmployeeId] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -21,11 +22,13 @@ function AuthPageContent() {
   const firestore = useFirestore();
 
   const handleScan = async () => {
+    console.log(`[Inspect][AuthPage] handleScan called for employee ID: ${employeeId}`);
     if (!employeeId) {
       toast({ variant: "destructive", title: "Input Required", description: "Please enter your Employee ID." });
       return;
     }
     if (!firestore) {
+      console.error('[Inspect][AuthPage] Firestore not available for scan.');
       toast({ variant: "destructive", title: "System Not Ready", description: "Database is not connected." });
       return;
     }
@@ -35,8 +38,10 @@ function AuthPageContent() {
     setAuthenticatedEmployee(null);
 
     try {
+      console.log(`[Inspect][AuthPage] Getting document for employee: employees/${employeeId}`);
       const employeeRef = doc(firestore, 'employees', employeeId);
       const employeeSnap = await getDoc(employeeRef);
+      console.log(`[Inspect][AuthPage] Document snapshot received. Exists: ${employeeSnap.exists()}`);
 
       if (!employeeSnap.exists()) {
         toast({ variant: "destructive", title: "Authentication Failed", description: "Employee ID not found." });
@@ -45,6 +50,7 @@ function AuthPageContent() {
       }
       
       const employeeData = { ...employeeSnap.data(), id: employeeSnap.id } as Employee;
+      console.log(`[Inspect][AuthPage] Employee data:`, employeeData);
 
       if (!employeeData.hasBiometric) {
         toast({ variant: "destructive", title: "Authentication Failed", description: "No biometric data found for this employee." });
@@ -58,12 +64,13 @@ function AuthPageContent() {
         return;
       }
 
-      // Simulate biometric scan
+      console.log('[Inspect][AuthPage] Simulating biometric scan...');
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      // Non-blocking updates
       const newBalance = (employeeData.ticketBalance || 0) - 1;
+      console.log(`[Inspect][AuthPage] Initiating non-blocking update for ticket balance to ${newBalance}`);
       updateDoc(employeeRef, { ticketBalance: newBalance }).catch(async (serverError) => {
+          console.error(`[Inspect][AuthPage] Firestore error during ticket balance update:`, serverError);
           const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
           const permissionError = new FirestorePermissionError({
               path: employeeRef.path, operation: 'update', requestResourceData: { ticketBalance: newBalance },
@@ -71,6 +78,7 @@ function AuthPageContent() {
           errorEmitter.emit('permission-error', permissionError);
       });
 
+      console.log(`[Inspect][AuthPage] Initiating non-blocking creation of feeding record.`);
       const feedingRecordRef = collection(firestore, 'feedingRecords');
       const newFeedingRecord = {
         employeeId: employeeData.id,
@@ -79,6 +87,7 @@ function AuthPageContent() {
         timestamp: serverTimestamp()
       };
       addDoc(feedingRecordRef, newFeedingRecord).catch(async (serverError) => {
+          console.error(`[Inspect][AuthPage] Firestore error during feeding record creation:`, serverError);
           const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
           const permissionError = new FirestorePermissionError({
               path: feedingRecordRef.path, operation: 'create', requestResourceData: newFeedingRecord,
@@ -106,16 +115,17 @@ function AuthPageContent() {
       };
 
       const params = new URLSearchParams({ ticket: JSON.stringify(ticketDataForPage) });
+      console.log(`[Inspect][AuthPage] Navigating to ticket page.`);
       router.push(`/ticket?${params.toString()}`);
 
     } catch (error: any) {
+        console.error(`[Inspect][AuthPage] Error during handleScan:`, error);
         setIsScanning(false);
         const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
         const permissionError = new FirestorePermissionError({
             path: `employees/${employeeId}`, operation: 'get',
         });
         errorEmitter.emit('permission-error', permissionError);
-        console.error("An unexpected error occurred: ", error);
         toast({
             variant: "destructive",
             title: "Operation Failed",

@@ -13,8 +13,11 @@ export function FirebaseErrorListener() {
   const [error, setError] = useState<FirestorePermissionError | null>(null);
 
   useEffect(() => {
+    console.log('[Inspect][FirebaseErrorListener] Hook mounted. Listening for permission-error events.');
+    
     // The callback now expects a strongly-typed error, matching the event payload.
     const handleError = (error: FirestorePermissionError) => {
+      console.error('[Inspect][FirebaseErrorListener] Received permission-error event:', error);
       // Set error in state to trigger a re-render.
       setError(error);
     };
@@ -25,12 +28,14 @@ export function FirebaseErrorListener() {
 
     // Unsubscribe on unmount to prevent memory leaks.
     return () => {
+      console.log('[Inspect][FirebaseErrorListener] Hook unmounted. Unsubscribing from events.');
       errorEmitter.off('permission-error', handleError);
     };
   }, []);
 
   // On re-render, if an error exists in state, throw it.
   if (error) {
+    console.error('[Inspect][FirebaseErrorListener] Throwing error to be caught by Next.js error boundary:', error);
     throw error;
   }
 

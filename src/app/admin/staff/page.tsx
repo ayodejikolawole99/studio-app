@@ -3,6 +3,7 @@
 import StaffList from '@/components/staff-list';
 
 export default function StaffPage() {
+  console.log('[Inspect][StaffPage] Component rendered');
   return (
     <>
       <header className="mb-8">

@@ -62,7 +62,11 @@ export function useCollection<T = any>(
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
+    const queryPath = memoizedTargetRefOrQuery ? (memoizedTargetRefOrQuery as CollectionReference).path || (memoizedTargetRefOrQuery as any)?._query?.path.toString() : 'null';
+    console.log(`[Inspect][useCollection] useEffect triggered. Query path: ${queryPath}`);
+    
     if (!memoizedTargetRefOrQuery) {
+      console.log('[Inspect][useCollection] No query provided. Resetting state.');
       setData(null);
       setIsLoading(false);
       setError(null);
@@ -72,7 +76,6 @@ export function useCollection<T = any>(
     setIsLoading(true);
     setError(null);
 
-    // Directly use memoizedTargetRefOrQuery as it's assumed to be the final query
     const unsubscribe = onSnapshot(
       memoizedTargetRefOrQuery,
       (snapshot: QuerySnapshot<DocumentData>) => {
@@ -80,12 +83,14 @@ export function useCollection<T = any>(
         for (const doc of snapshot.docs) {
           results.push({ ...(doc.data() as T), id: doc.id });
         }
+        console.log(`[Inspect][useCollection] Snapshot received for path ${queryPath}. Found ${results.length} documents.`);
         setData(results);
         setError(null);
         setIsLoading(false);
       },
       (error: FirestoreError) => {
-        // This logic extracts the path from either a ref or a query
+        console.error(`[Inspect][useCollection] Firestore error on path ${queryPath}:`, error);
+        
         const path: string =
           memoizedTargetRefOrQuery.type === 'collection'
             ? (memoizedTargetRefOrQuery as CollectionReference).path
@@ -105,10 +110,16 @@ export function useCollection<T = any>(
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+        console.log(`[Inspect][useCollection] Unsubscribing from query on path ${queryPath}.`);
+        unsubscribe();
+    }
   }, [memoizedTargetRefOrQuery]); // Re-run if the target query/reference changes.
+  
   if(memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
+    console.warn(`[Inspect][useCollection] The provided query to useCollection was not memoized with useMemoFirebase. This can lead to infinite loops. Path: ${(memoizedTargetRefOrQuery as CollectionReference).path}`);
     throw new Error(memoizedTargetRefOrQuery + ' was not properly memoized using useMemoFirebase');
   }
+
   return { data, isLoading, error };
 }

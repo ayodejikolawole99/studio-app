@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import {
   Table,
   TableBody,
@@ -36,6 +36,7 @@ import { useFirestore } from '@/firebase';
 import { collection, doc, setDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
 
 export default function StaffList() {
+  console.log('[Inspect][StaffList] Component rendered');
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditOpen, setEditOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -45,21 +46,27 @@ export default function StaffList() {
   const firestore = useFirestore();
 
   const handleSearch = () => {
-    if (!firestore) return;
+    console.log(`[Inspect][StaffList] handleSearch called with term: "${searchTerm}"`);
+    if (!firestore) {
+        console.error('[Inspect][StaffList] Firestore not available for search.');
+        return;
+    }
     startSearchTransition(async () => {
       try {
         const employeesRef = collection(firestore, 'employees');
         // Simple search: query where name is >= search term.
         // For a real app, a more sophisticated search (like Algolia) is needed.
+        console.log(`[Inspect][StaffList] Creating query for name: '${searchTerm}'`);
         const q = query(employeesRef, where('name', '>=', searchTerm), where('name', '<=', searchTerm + '\uf8ff'));
         const querySnapshot = await getDocs(q);
         const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        console.log(`[Inspect][StaffList] Search found ${results.length} results:`, results);
         setSearchResults(results);
         if (results.length === 0) {
           toast({ title: 'No Results', description: 'No employees found with that name.' });
         }
       } catch (e) {
-        console.error("Error searching employees: ", e);
+        console.error("[Inspect][StaffList] Error searching employees: ", e);
         const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
         const permissionError = new FirestorePermissionError({
             path: 'employees', operation: 'list',
@@ -71,25 +78,31 @@ export default function StaffList() {
   }
 
   const handleAdd = () => {
+    console.log('[Inspect][StaffList] handleAdd called');
     setSelectedEmployee(null);
     setEditOpen(true);
   };
 
   const handleEdit = (employee: Employee) => {
+    console.log('[Inspect][StaffList] handleEdit called for employee:', employee);
     setSelectedEmployee(employee);
     setEditOpen(true);
   };
   
   const handleDelete = async (employeeId: string) => {
-    if (!firestore) return;
+    console.log('[Inspect][StaffList] handleDelete called for employee ID:', employeeId);
+    if (!firestore) {
+        console.error('[Inspect][StaffList] Firestore not available for delete.');
+        return;
+    }
     try {
       const employeeRef = doc(firestore, 'employees', employeeId);
       await deleteDoc(employeeRef);
-      // After deleting, re-run the search to update the list
+      console.log(`[Inspect][StaffList] Employee ${employeeId} deleted. Refreshing search results.`);
       handleSearch();
       toast({ title: 'Success', description: 'Employee has been deleted.'});
     } catch (error) {
-      console.error("Error deleting employee: ", error);
+      console.error("[Inspect][StaffList] Error deleting employee: ", error);
       const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
       const permissionError = new FirestorePermissionError({
           path: `employees/${employeeId}`, operation: 'delete',
@@ -100,17 +113,22 @@ export default function StaffList() {
   };
 
   const handleSave = async (employeeData: Employee, isNew: boolean) => {
-    if (!firestore) return;
+    console.log(`[Inspect][StaffList] handleSave called. isNew: ${isNew}, data:`, employeeData);
+    if (!firestore) {
+        console.error('[Inspect][StaffList] Firestore not available for save.');
+        return;
+    }
     try {
       const employeeRef = doc(firestore, 'employees', employeeData.id);
       await setDoc(employeeRef, employeeData, { merge: true });
+      console.log(`[Inspect][StaffList] Employee ${employeeData.id} saved. Refreshing search results.`);
       handleSearch(); // Refresh search results
       toast({
           title: "Success",
           description: `Employee ${isNew ? 'added' : 'updated'} successfully.`,
       });
     } catch (error) {
-       console.error("Error saving employee: ", error);
+       console.error("[Inspect][StaffList] Error saving employee: ", error);
        const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
        const permissionError = new FirestorePermissionError({
            path: `employees/${employeeData.id}`, operation: isNew ? 'create' : 'update', requestResourceData: employeeData,

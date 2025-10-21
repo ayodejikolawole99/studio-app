@@ -7,18 +7,19 @@ import BulkTicketControl from '@/components/bulk-ticket-control';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, writeBatch, getDocs, query as firestoreQuery, where } from 'firebase/firestore';
+import { collection, doc, updateDoc, writeBatch, getDocs, query as firestoreQuery, where } from 'firebase/firestore';
 
 export default function TicketsPage() {
+  console.log('[Inspect][TicketsPage] Component rendered');
   const { toast } = useToast();
   const firestore = useFirestore();
 
-  // We can still fetch all employees here as it's a less frequent admin operation.
-  // If this page also errors, we would need to refactor it to be search-based too.
+  console.log('[Inspect][TicketsPage] Preparing to call useCollection for employees');
   const employeesRef = useMemoFirebase(() => 
     firestore ? collection(firestore, 'employees') : null
   , [firestore]);
   const { data: employees, isLoading: areEmployeesLoading, error } = useCollection<Employee>(employeesRef);
+  console.log(`[Inspect][TicketsPage] useCollection result:`, { data: employees, isLoading: areEmployeesLoading, error });
 
 
   const departments = useMemo(() => {
@@ -28,13 +29,21 @@ export default function TicketsPage() {
   }, [employees]);
 
   const handleIndividualUpdate = async (employeeId: string, amount: number) => {
-    if (!firestore || !employees) return;
+    console.log(`[Inspect][TicketsPage] handleIndividualUpdate called with:`, { employeeId, amount });
+    if (!firestore || !employees) {
+        console.error('[Inspect][TicketsPage] Firestore or employees not available for individual update.');
+        return;
+    }
     const employee = employees.find(e => e.id === employeeId);
-    if (!employee) return;
+    if (!employee) {
+        console.error(`[Inspect][TicketsPage] Employee with ID ${employeeId} not found.`);
+        return;
+    }
 
     try {
       const employeeRef = doc(firestore, 'employees', employeeId);
       const newBalance = Math.max(0, (employee.ticketBalance || 0) + amount);
+      console.log(`[Inspect][TicketsPage] Updating employee ${employeeId} with new balance: ${newBalance}`);
       await updateDoc(employeeRef, { ticketBalance: newBalance });
 
       toast({
@@ -42,7 +51,7 @@ export default function TicketsPage() {
         description: `Ticket balance for ${employee.name} updated.`
       });
     } catch (error) {
-      console.error('Error updating individual ticket balance:', error);
+      console.error('[Inspect][TicketsPage] Error updating individual ticket balance:', error);
       const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
       const permissionError = new FirestorePermissionError({
           path: `employees/${employeeId}`, operation: 'update',
@@ -57,14 +66,20 @@ export default function TicketsPage() {
   };
   
   const handleBulkUpdate = async (department: string, amount: number) => {
-    if (!firestore) return;
+    console.log(`[Inspect][TicketsPage] handleBulkUpdate called with:`, { department, amount });
+    if (!firestore) {
+        console.error('[Inspect][TicketsPage] Firestore not available for bulk update.');
+        return;
+    };
     
     try {
         const batch = writeBatch(firestore);
         let collectionRef = collection(firestore, "employees");
         let q = department === 'all' ? collectionRef : firestoreQuery(collectionRef, where("department", "==", department));
-
+        
+        console.log(`[Inspect][TicketsPage] Executing bulk update query for department: ${department}`);
         const querySnapshot = await getDocs(q);
+        console.log(`[Inspect][TicketsPage] Bulk update query found ${querySnapshot.size} documents.`);
 
         if (querySnapshot.empty && department !== 'all') {
              toast({ variant: 'destructive', title: 'No Employees Found', description: `No employees found in the ${department} department.` });
@@ -84,7 +99,7 @@ export default function TicketsPage() {
             description: `Ticket balances updated for ${department === 'all' ? 'all employees' : `the ${department} department`}.`
         });
     } catch (error) {
-        console.error('Error performing bulk update:', error);
+        console.error('[Inspect][TicketsPage] Error performing bulk update:', error);
         const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
         const permissionError = new FirestorePermissionError({
             path: 'employees', operation: 'list',
@@ -95,6 +110,7 @@ export default function TicketsPage() {
   };
 
   if (areEmployeesLoading) {
+    console.log('[Inspect][TicketsPage] Rendering loading state...');
     return (
         <div className="flex h-64 w-full items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -103,8 +119,8 @@ export default function TicketsPage() {
     );
   }
 
-  // If the initial full collection load fails, show an error.
   if (error) {
+     console.error('[Inspect][TicketsPage] Rendering error state:', error);
      return (
         <div className="flex h-64 w-full items-center justify-center text-destructive">
             <p>Error loading employees. The database connection is failing. Please check console.</p>
@@ -112,6 +128,7 @@ export default function TicketsPage() {
     );
   }
 
+  console.log('[Inspect][TicketsPage] Rendering main content.');
   return (
     <>
       <header className="mb-8">
