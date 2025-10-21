@@ -88,7 +88,7 @@ export function StaffEditDialog({
       id: employeeId, // Use the state for employeeId, which is the document ID
       name,
       department,
-      ticketBalance: isNew ? 20 : (employee?.ticketBalance || 0), // Default to 20 tickets for new employees
+      ticketBalance: isNew ? 0 : (employee?.ticketBalance || 0), // Default to 0 tickets for new employees
       hasBiometric,
     };
 
