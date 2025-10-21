@@ -20,13 +20,11 @@ type CreateEmployeeInput = z.infer<typeof CreateEmployeeInputSchema>;
 
 /**
  * Initializes the Firebase Admin SDK on the server, ensuring it only happens once.
- * It uses environment variables for credentials. This must run at the module level
- * before any Firebase services are accessed.
+ * It uses environment variables for credentials, which is the correct pattern for Next.js server environments.
  */
 if (!admin.apps.length) {
-    // This check is important on the server to prevent re-initialization.
     if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
-        // This log is for server-side debugging. It won't be visible in the browser.
+        // This log is for server-side debugging.
         console.error('Firebase Admin SDK environment variables are not set. The createEmployee flow will fail.');
     } else {
         try {
@@ -46,7 +44,7 @@ if (!admin.apps.length) {
 
 /**
  * A server-side async function (Server Action) to create an employee document in Firestore.
- * This function is called from the client to perform a privileged write operation.
+ * This function is called from the client to perform a privileged write operation that bypasses security rules.
  * @param employeeData - The data for the new employee.
  * @returns A promise that resolves when the employee is created.
  */

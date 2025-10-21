@@ -1,98 +1,79 @@
 /**
- * @fileoverview Firestore Security Rules for the canteen biometric app.
- *
- * Core Philosophy:
- * This ruleset enforces a role-based access control model with strict separation of privileges.
- * Admins, identified by a custom claim, have full access to manage employee data and ticket logs.
- * Employees can only read their own employee record and their own feeding records.
- *
- * Data Structure:
- * - `/employees/{employeeId}`: Stores employee profiles, with the employee ID as the document ID.
- * - `/feedingRecords/{recordId}`: Stores records of meal consumptions, denormalized for efficient querying.
- *
- * Key Security Decisions:
- * - Admins are identified by a custom claim `admin: true` on their Firebase Auth user.
- * - Employees can only access their own data, enforced by matching `request.auth.uid` to `employeeId`.
- * - Feeding records are immutable after creation (no updates or deletes allowed).
- * - Listing of employees is forbidden to prevent unauthorized enumeration.
- *
- * Denormalization for Authorization:
- * - The `feedingRecords` collection denormalizes `employeeId` to enable secure filtering based on `request.auth.uid`.
+ * @description This ruleset enforces a strict user-ownership model for employee profiles and allows public read access to feeding records. Administrative privileges are granted through custom claims.
+ * @dataStructure
+ *   - /employees/{employeeId}: Stores employee profiles, with the document ID being the employee's ID.
+ *   - /feedingRecords/{recordId}: Stores records of meal consumption events.
+ * @keySecurityDecisions
+ *   - Employee profiles are only readable by the employee themselves or by accounts with the 'admin' custom claim.
+ *   - Only accounts with the 'admin' custom claim can create, update, or delete employee profiles.
+ *   - Feeding records are publicly readable but cannot be created, updated, or deleted directly through client-side rules; they must be managed via the Admin SDK.
+ * @denormalizationForAuthorization
+ *   - The 'employeeId' is used both as the document ID and as a field within the Employee document for easy authorization.
+ * @structuralSegregation
+ *   - No segregation is needed as private employee data and public logs are stored in separate collections with specific rules.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages employee profiles. Admins can create, update, and delete employee records. Employees can only read their own record.
+     * @description Manages employee profiles, allowing employees to read their own profiles and admins to manage all profiles.
      * @path /employees/{employeeId}
-     * @allow (create) - If the user is an admin.
-     * @allow (update) - If the user is an admin.
-     * @allow (delete) - If the user is an admin.
-     * @allow (get) - If the user is an admin or the user is the owner of the document.
-     * @allow (list) - If the user is an admin.
-     * @deny (create) - If the user is not an admin.
-     * @deny (update) - If the user is not an admin.
-     * @deny (delete) - If the user is not an admin.
-     * @deny (get) - If the user is not an admin or the owner of the document.
-     * @deny (list) - Listing all employees is denied to protect employee privacy.
-     * @principle Enforces role-based access control and document ownership.
+     * @allow (read) User with UID 'employeeId' can read.
+     * @allow (create, update, delete) User with 'admin' custom claim can modify.
+     * @deny (create, update, delete) User without 'admin' custom claim cannot modify.
+     * @deny (read) User with UID other than 'employeeId' and without 'admin' claim cannot read.
+     * @principle Enforces document ownership for reads and admin-only access for writes.
      */
     match /employees/{employeeId} {
-      // Admins can create, update, delete any employee record
-      allow create: if isAdmin();
-      allow update: if isAdmin() && isExistingDocument();
-      allow delete: if isAdmin() && isExistingDocument();
+      // Read rules
+      allow get: if isSignedIn() && (request.auth.uid == employeeId || isAdmin());
+      allow list: if isSignedIn() && isAdmin();
 
-      // Employees can read their own record
-      allow get: if isOwner(employeeId);
-      allow list: if false;
+      // Write rules
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Manages feeding records. Admins can read and create feeding records. Employees can only read their own feeding records. No one can update or delete feeding records directly.
+     * @description Stores records of meal consumption events, publicly readable but writable only via Admin SDK.
      * @path /feedingRecords/{recordId}
-     * @allow (create) - If the user is an admin.
-     * @allow (read) - If the user is an admin or the user is the owner of the document.
-     * @deny (create) - If the user is not an admin.
-     * @deny (read) - If the user is not an admin or the owner of the document.
-     * @allow (update) - Never allowed.
-     * @allow (delete) - Never allowed.
-     * @principle Enforces role-based access control and immutability for feeding records.
+     * @allow (read) Any user can read feeding records.
+     * @deny (create, update, delete) No user can create, update, or delete feeding records through client-side rules.
+     * @principle Public read access with admin-only writes.
      */
     match /feedingRecords/{recordId} {
-      // Admins can read all tickets
-      allow get: if isAdmin();
-      allow list: if isAdmin();
+      // Read rules
+      allow get, list: if true;
 
-      // Employees can only read their own tickets
-      allow create: if isAdmin();
-      allow read: if isFeedingRecordForEmployee(resource.data.employeeId);
-
-      // No one should update or delete ticket logs directly
+      // Write rules
+      allow create: if false;
       allow update: if false;
       allow delete: if false;
     }
-  }
 
-  // Helper functions
-  function isSignedIn() {
-    return request.auth != null;
-  }
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
 
-  function isAdmin() {
-    return isSignedIn() && request.auth.token.admin == true;
-  }
+    function isAdmin() {
+      return request.auth.token.admin == true;
+    }
 
-  function isOwner(employeeId) {
-    return isSignedIn() && request.auth.uid == employeeId;
-  }
+    function isOwner(userId) {
+        return request.auth.uid == userId;
+    }
 
-  function isExistingDocument() {
-    return resource != null;
-  }
+    function isExistingEmployee(employeeId) {
+        return exists(/databases/$(database)/documents/employees/$(employeeId));
+    }
 
-  function isFeedingRecordForEmployee(employeeId) {
-        return isSignedIn() && request.auth.uid == employeeId;
+    // Relaxing validation to allow rapid iteration.  Focus is on authorization, not data shape.
+    function isValidEmployeeCreate(employeeId) {
+        return true;
+    }
+
   }
 }
