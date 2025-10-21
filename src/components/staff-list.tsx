@@ -34,6 +34,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
 import { collection, doc, setDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
+import { FirestorePermissionError, errorEmitter } from '@/firebase';
 
 export default function StaffList() {
   console.log('[Inspect][StaffList] Component rendered');
@@ -54,8 +55,6 @@ export default function StaffList() {
     startSearchTransition(async () => {
       try {
         const employeesRef = collection(firestore, 'employees');
-        // Simple search: query where name is >= search term.
-        // For a real app, a more sophisticated search (like Algolia) is needed.
         console.log(`[Inspect][StaffList] Creating query for name: '${searchTerm}'`);
         const q = query(employeesRef, where('name', '>=', searchTerm), where('name', '<=', searchTerm + '\uf8ff'));
         const querySnapshot = await getDocs(q);
@@ -67,9 +66,9 @@ export default function StaffList() {
         }
       } catch (e) {
         console.error("[Inspect][StaffList] Error searching employees: ", e);
-        const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
         const permissionError = new FirestorePermissionError({
-            path: 'employees', operation: 'list',
+            path: 'employees', 
+            operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
         toast({ variant: 'destructive', title: 'Search Failed', description: 'Could not perform search.' });
@@ -89,53 +88,56 @@ export default function StaffList() {
     setEditOpen(true);
   };
   
-  const handleDelete = async (employeeId: string) => {
+  const handleDelete = (employeeId: string) => {
     console.log('[Inspect][StaffList] handleDelete called for employee ID:', employeeId);
     if (!firestore) {
         console.error('[Inspect][StaffList] Firestore not available for delete.');
         return;
     }
-    try {
-      const employeeRef = doc(firestore, 'employees', employeeId);
-      await deleteDoc(employeeRef);
-      console.log(`[Inspect][StaffList] Employee ${employeeId} deleted. Refreshing search results.`);
-      handleSearch();
-      toast({ title: 'Success', description: 'Employee has been deleted.'});
-    } catch (error) {
-      console.error("[Inspect][StaffList] Error deleting employee: ", error);
-      const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
-      const permissionError = new FirestorePermissionError({
-          path: `employees/${employeeId}`, operation: 'delete',
+    const employeeRef = doc(firestore, 'employees', employeeId);
+    deleteDoc(employeeRef)
+      .then(() => {
+        console.log(`[Inspect][StaffList] Employee ${employeeId} deleted. Refreshing search results.`);
+        handleSearch();
+        toast({ title: 'Success', description: 'Employee has been deleted.'});
+      })
+      .catch((error) => {
+        console.error("[Inspect][StaffList] Error deleting employee: ", error);
+        const permissionError = new FirestorePermissionError({
+            path: employeeRef.path, 
+            operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not delete employee.' });
       });
-      errorEmitter.emit('permission-error', permissionError);
-      toast({ variant: 'destructive', title: 'Error', description: 'Could not delete employee.' });
-    }
   };
 
-  const handleSave = async (employeeData: Employee, isNew: boolean) => {
+  const handleSave = (employeeData: Employee, isNew: boolean) => {
     console.log(`[Inspect][StaffList] handleSave called. isNew: ${isNew}, data:`, employeeData);
     if (!firestore) {
         console.error('[Inspect][StaffList] Firestore not available for save.');
         return;
     }
-    try {
-      const employeeRef = doc(firestore, 'employees', employeeData.id);
-      await setDoc(employeeRef, employeeData, { merge: true });
-      console.log(`[Inspect][StaffList] Employee ${employeeData.id} saved. Refreshing search results.`);
-      handleSearch(); // Refresh search results
-      toast({
-          title: "Success",
-          description: `Employee ${isNew ? 'added' : 'updated'} successfully.`,
+    const employeeRef = doc(firestore, 'employees', employeeData.id);
+    setDoc(employeeRef, employeeData, { merge: true })
+      .then(() => {
+        console.log(`[Inspect][StaffList] Employee ${employeeData.id} saved. Refreshing search results.`);
+        handleSearch(); // Refresh search results
+        toast({
+            title: "Success",
+            description: `Employee ${isNew ? 'added' : 'updated'} successfully.`,
+        });
+      })
+      .catch((error) => {
+         console.error("[Inspect][StaffList] Error saving employee: ", error);
+         const permissionError = new FirestorePermissionError({
+             path: employeeRef.path, 
+             operation: isNew ? 'create' : 'update', 
+             requestResourceData: employeeData,
+         });
+         errorEmitter.emit('permission-error', permissionError);
+         toast({ variant: 'destructive', title: 'Error', description: 'Could not save employee data.' });
       });
-    } catch (error) {
-       console.error("[Inspect][StaffList] Error saving employee: ", error);
-       const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
-       const permissionError = new FirestorePermissionError({
-           path: `employees/${employeeData.id}`, operation: isNew ? 'create' : 'update', requestResourceData: employeeData,
-       });
-       errorEmitter.emit('permission-error', permissionError);
-       toast({ variant: 'destructive', title: 'Error', description: 'Could not save employee data.' });
-    }
   };
 
   return (

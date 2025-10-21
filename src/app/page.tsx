@@ -10,6 +10,7 @@ import { useFirestore } from '@/firebase';
 import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { FirestorePermissionError, errorEmitter } from '@/firebase';
 
 function AuthPageContent() {
   console.log('[Inspect][AuthPage] Component rendered');
@@ -68,12 +69,12 @@ function AuthPageContent() {
       await new Promise(resolve => setTimeout(resolve, 1500));
 
       const newBalance = (employeeData.ticketBalance || 0) - 1;
+      const updateData = { ticketBalance: newBalance };
       console.log(`[Inspect][AuthPage] Initiating non-blocking update for ticket balance to ${newBalance}`);
-      updateDoc(employeeRef, { ticketBalance: newBalance }).catch(async (serverError) => {
+      updateDoc(employeeRef, updateData).catch(async (serverError) => {
           console.error(`[Inspect][AuthPage] Firestore error during ticket balance update:`, serverError);
-          const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
           const permissionError = new FirestorePermissionError({
-              path: employeeRef.path, operation: 'update', requestResourceData: { ticketBalance: newBalance },
+              path: employeeRef.path, operation: 'update', requestResourceData: updateData,
           });
           errorEmitter.emit('permission-error', permissionError);
       });
@@ -88,7 +89,6 @@ function AuthPageContent() {
       };
       addDoc(feedingRecordRef, newFeedingRecord).catch(async (serverError) => {
           console.error(`[Inspect][AuthPage] Firestore error during feeding record creation:`, serverError);
-          const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
           const permissionError = new FirestorePermissionError({
               path: feedingRecordRef.path, operation: 'create', requestResourceData: newFeedingRecord,
           });
@@ -121,7 +121,6 @@ function AuthPageContent() {
     } catch (error: any) {
         console.error(`[Inspect][AuthPage] Error during handleScan:`, error);
         setIsScanning(false);
-        const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
         const permissionError = new FirestorePermissionError({
             path: `employees/${employeeId}`, operation: 'get',
         });
