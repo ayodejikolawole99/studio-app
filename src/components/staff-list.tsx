@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
-import { collection, doc, setDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
 
 export default function StaffList() {
@@ -103,7 +103,7 @@ export default function StaffList() {
     deleteDoc(employeeRef)
       .then(() => {
         console.log(`[Inspect][StaffList] Employee ${employeeId} deleted. Refreshing search results.`);
-        handleSearch();
+        handleSearch(); // Refresh search results after delete
         toast({ title: 'Success', description: 'Employee has been deleted.'});
       })
       .catch((error) => {
@@ -117,44 +117,10 @@ export default function StaffList() {
       });
   };
 
-  const handleSave = (employeeData: Partial<Employee> & { id: string }, isNew: boolean) => {
-    console.log(`[Inspect][StaffList] handleSave called. isNew: ${isNew}, data:`, employeeData);
-    if (!firestore) {
-        console.error('[Inspect][StaffList] Firestore not available for save.');
-        return;
-    }
-    const employeeRef = doc(firestore, 'employees', employeeData.id);
-    
-    const saveData = {
-        name: employeeData.name,
-        department: employeeData.department,
-        employeeId: employeeData.id,
-        // Ensure biometricTemplate is included if it exists
-        ...(employeeData.biometricTemplate && { biometricTemplate: employeeData.biometricTemplate }),
-        // Set initial balance for new employees
-        ...(isNew && { ticketBalance: 0 }),
-    };
-    
-    setDoc(employeeRef, saveData, { merge: true }) // Use merge:true to avoid overwriting existing fields
-      .then(() => {
-        console.log(`[Inspect][StaffList] Employee ${employeeData.id} saved. Refreshing search results.`);
-        handleSearch(); // Refresh search results
-        toast({
-            title: "Success",
-            description: `Employee ${isNew ? 'added' : 'updated'} successfully.`,
-        });
-      })
-      .catch((error) => {
-         console.error("[Inspect][StaffList] Error saving employee: ", error);
-         const permissionError = new FirestorePermissionError({
-             path: employeeRef.path, 
-             operation: isNew ? 'create' : 'update', 
-             requestResourceData: saveData,
-         });
-         errorEmitter.emit('permission-error', permissionError);
-         toast({ variant: 'destructive', title: 'Error', description: 'Could not save employee data.' });
-      });
-  };
+  const onSuccessfulSave = () => {
+      handleSearch();
+      setEditOpen(false);
+  }
 
   return (
     <>
@@ -250,7 +216,7 @@ export default function StaffList() {
         isOpen={isEditOpen} 
         setIsOpen={setEditOpen} 
         employee={selectedEmployee} 
-        onSave={handleSave} 
+        onSaveSuccess={onSuccessfulSave}
       />
     </>
   );

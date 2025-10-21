@@ -27,14 +27,14 @@ interface StaffEditDialogProps {
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
   employee: Employee | null;
-  onSave: (employeeData: Partial<Employee>, isNew: boolean) => void;
+  onSaveSuccess: () => void;
 }
 
 export function StaffEditDialog({
   isOpen,
   setIsOpen,
   employee,
-  onSave,
+  onSaveSuccess,
 }: StaffEditDialogProps) {
   const [name, setName] = useState('');
   const [employeeId, setEmployeeId] = useState('');
@@ -42,15 +42,18 @@ export function StaffEditDialog({
   const [biometricTemplate, setBiometricTemplate] = useState<string | undefined>(undefined);
   const [isScanning, startBiometricScan] = useTransition();
   const { toast } = useToast();
+  const firestore = useFirestore();
 
   useEffect(() => {
     if (isOpen) {
+      console.log("[Inspect][StaffEditDialog] Dialog opened with employee:", employee);
       setName(employee?.name || '');
       setEmployeeId(employee?.id || '');
       setDepartment(employee?.department || '');
       setBiometricTemplate(employee?.biometricTemplate);
     } else {
       // Reset form when dialog is closed
+      console.log("[Inspect][StaffEditDialog] Dialog closed, resetting state.");
       setName('');
       setEmployeeId('');
       setDepartment('');
@@ -66,6 +69,7 @@ export function StaffEditDialog({
       const simulatedTemplate = `B64_TEMPLATE_${employeeId || 'NEW'}_${Date.now()}`;
       
       setBiometricTemplate(simulatedTemplate);
+      console.log("[Inspect][StaffEditDialog] Biometric scan simulated, template set:", simulatedTemplate);
       
       toast({
         title: "Biometric Scan Successful",
@@ -75,24 +79,53 @@ export function StaffEditDialog({
   };
 
   const handleSave = () => {
+    console.log("[Inspect][StaffEditDialog] handleSave triggered.");
     if (!name || !employeeId || !department) {
       toast({ variant: "destructive", title: "Validation Error", description: "Please fill out all fields." });
       return;
     }
+    if (!firestore) {
+        console.error('[Inspect][StaffEditDialog] Firestore not available for save.');
+        toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
+        return;
+    }
 
     const isNew = !employee;
     
-    // We only create partial data here. The onSave function will handle the merge.
-    const employeeData: Partial<Employee> & { id: string } = {
-      id: employeeId,
+    const saveData: Omit<Employee, 'id'> = {
       name,
       department,
+      employeeId,
       // Only include the template if it has been scanned/exists
       ...(biometricTemplate && { biometricTemplate }),
+      // Set initial balance for new employees, or keep existing
+      ticketBalance: employee?.ticketBalance || 0,
     };
 
-    onSave(employeeData, isNew);
-    setIsOpen(false);
+    console.log(`[Inspect][StaffEditDialog] Preparing to save data for employee ID ${employeeId}:`, saveData);
+    const employeeRef = doc(firestore, 'employees', employeeId);
+    
+    // Using setDoc with merge: true will create the doc if it doesn't exist,
+    // or update it if it does. This effectively becomes an "upsert".
+    setDoc(employeeRef, saveData, { merge: true })
+      .then(() => {
+        console.log(`[Inspect][StaffEditDialog] Employee ${employeeId} saved successfully.`);
+        toast({
+            title: "Success",
+            description: `Employee ${isNew ? 'added' : 'updated'} successfully.`,
+        });
+        onSaveSuccess(); // Call the callback to refresh list and close dialog
+      })
+      .catch((error) => {
+         console.error("[Inspect][StaffEditDialog] Error saving employee: ", error);
+         const permissionError = new FirestorePermissionError({
+             path: employeeRef.path, 
+             operation: isNew ? 'create' : 'update', 
+             requestResourceData: saveData,
+         });
+         errorEmitter.emit('permission-error', permissionError);
+         toast({ variant: 'destructive', title: 'Error', description: 'Could not save employee data.' });
+      });
   };
 
   const hasBiometric = !!biometricTemplate;
@@ -115,7 +148,7 @@ export function StaffEditDialog({
             </div>
             <div className="space-y-2">
                 <Label htmlFor="id">Employee Number</Label>
-                <Input id="id" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} disabled={!!employee} placeholder="e.g. E-011" />
+                <Input id="id" value={employeeId} onChange={(e) => setEmployeeId(e.target.value.toUpperCase())} disabled={!!employee} placeholder="e.g. E-011" />
             </div>
           </div>
            <div className="grid grid-cols-1 gap-4">
