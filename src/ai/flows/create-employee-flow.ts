@@ -6,9 +6,9 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, setDoc } from 'firebase/firestore';
+import { z } from 'zod';
+import { initializeApp, getApps, getApp } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 import { firebaseConfig } from '@/firebase/config';
 
 // The input schema is now defined in the client component that calls this flow.
@@ -31,12 +31,14 @@ export async function createEmployee(employeeData: CreateEmployeeInput): Promise
   await createEmployeeFlow(employeeData);
 }
 
-// Server-side Firebase initialization
+// Server-side Firebase initialization using Admin SDK
 function initializeServerFirebase() {
   if (getApps().some(app => app.name === 'server-flow')) {
     return getApp('server-flow');
   }
-  return initializeApp(firebaseConfig, 'server-flow');
+  // This uses the Admin SDK, which has elevated privileges.
+  // It will automatically use the application's default credentials in this environment.
+  return initializeApp({ projectId: firebaseConfig.projectId }, 'server-flow');
 }
 
 
@@ -52,11 +54,11 @@ const createEmployeeFlow = ai.defineFlow(
     const firestore = getFirestore(serverApp);
     
     // The document ID will be the employeeId provided from the client.
-    const employeeRef = doc(firestore, 'employees', employeeData.employeeId);
+    const employeeRef = firestore.collection('employees').doc(employeeData.employeeId);
     
     // Using setDoc will create the document. We are not using merge here because
     // this flow is specifically for creating new employees.
-    await setDoc(employeeRef, employeeData);
+    await employeeRef.set(employeeData);
     
     console.log(`[Flow] Successfully created employee: ${employeeData.employeeId}`);
   }
