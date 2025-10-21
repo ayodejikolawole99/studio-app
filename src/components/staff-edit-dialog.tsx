@@ -45,13 +45,13 @@ export function StaffEditDialog({
   const firestore = useFirestore();
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && employee) {
       console.log("[Inspect][StaffEditDialog] Dialog opened with employee:", employee);
-      setName(employee?.name || '');
-      setEmployeeId(employee?.id || '');
-      setDepartment(employee?.department || '');
-      setBiometricTemplate(employee?.biometricTemplate);
-    } else {
+      setName(employee.name || '');
+      setEmployeeId(employee.id || '');
+      setDepartment(employee.department || '');
+      setBiometricTemplate(employee.biometricTemplate);
+    } else if (!isOpen) {
       // Reset form when dialog is closed
       console.log("[Inspect][StaffEditDialog] Dialog closed, resetting state.");
       setName('');
@@ -90,15 +90,13 @@ export function StaffEditDialog({
         return;
     }
 
-    const isNew = !employee;
-    
     const saveData: Omit<Employee, 'id'> = {
       name,
       department,
       employeeId,
       // Only include the template if it has been scanned/exists
       ...(biometricTemplate && { biometricTemplate }),
-      // Set initial balance for new employees, or keep existing
+      // Keep existing balance or default to 0.
       ticketBalance: employee?.ticketBalance || 0,
     };
 
@@ -112,7 +110,7 @@ export function StaffEditDialog({
         console.log(`[Inspect][StaffEditDialog] Employee ${employeeId} saved successfully.`);
         toast({
             title: "Success",
-            description: `Employee ${isNew ? 'added' : 'updated'} successfully.`,
+            description: `Employee updated successfully.`,
         });
         onSaveSuccess(); // Call the callback to refresh list and close dialog
       })
@@ -120,7 +118,7 @@ export function StaffEditDialog({
          console.error("[Inspect][StaffEditDialog] Error saving employee: ", error);
          const permissionError = new FirestorePermissionError({
              path: employeeRef.path, 
-             operation: isNew ? 'create' : 'update', 
+             operation: 'update', // We are now only updating
              requestResourceData: saveData,
          });
          errorEmitter.emit('permission-error', permissionError);
@@ -130,13 +128,16 @@ export function StaffEditDialog({
 
   const hasBiometric = !!biometricTemplate;
 
+  // Do not render the dialog if there is no employee selected, as we can no longer create new ones.
+  if (!employee) return null;
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{employee ? 'Edit Staff' : 'Add New Staff'}</DialogTitle>
+          <DialogTitle>Edit Staff</DialogTitle>
           <DialogDescription>
-            {employee ? 'Update the details for this employee.' : 'Fill in the details for the new employee.'}
+            Update the details for this employee.
           </DialogDescription>
         </DialogHeader>
 
@@ -148,7 +149,7 @@ export function StaffEditDialog({
             </div>
             <div className="space-y-2">
                 <Label htmlFor="id">Employee Number</Label>
-                <Input id="id" value={employeeId} onChange={(e) => setEmployeeId(e.target.value.toUpperCase())} disabled={!!employee} placeholder="e.g. E-011" />
+                <Input id="id" value={employeeId} onChange={(e) => setEmployeeId(e.target.value.toUpperCase())} disabled={true} placeholder="e.g. E-011" />
             </div>
           </div>
            <div className="grid grid-cols-1 gap-4">

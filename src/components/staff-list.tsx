@@ -15,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Search, Loader2 } from 'lucide-react';
+import { MoreHorizontal, Search, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -53,6 +53,10 @@ export default function StaffList() {
         console.error('[Inspect][StaffList] Firestore not available for search.');
         return;
     }
+    if (!searchTerm) {
+        toast({ title: 'Search Term Required', description: 'Please enter a name to search for.', variant: 'destructive' });
+        return;
+    }
     startSearchTransition(async () => {
       try {
         const employeesRef = collection(firestore, 'employees');
@@ -79,12 +83,6 @@ export default function StaffList() {
       }
     });
   }
-
-  const handleAdd = () => {
-    console.log('[Inspect][StaffList] handleAdd called');
-    setSelectedEmployee(null);
-    setEditOpen(true);
-  };
 
   const handleEdit = (employee: Employee) => {
     console.log('[Inspect][StaffList] handleEdit called for employee:', employee);
@@ -118,7 +116,7 @@ export default function StaffList() {
   };
 
   const onSuccessfulSave = () => {
-      handleSearch();
+      handleSearch(); // Refresh the current search to show updated data
       setEditOpen(false);
   }
 
@@ -128,10 +126,7 @@ export default function StaffList() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <CardTitle>Staff Database</CardTitle>
-            <Button onClick={handleAdd}>
-              <PlusCircle className="mr-2" />
-              Add New Staff
-            </Button>
+            {/* The "Add New Staff" button is removed to prevent create operations */}
           </div>
           <div className="flex gap-2 mt-4">
             <Input
