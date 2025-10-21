@@ -2,85 +2,91 @@
  * @fileoverview Firestore Security Rules for the Canteen System.
  *
  * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for employee profiles
- * and allows public read access to feeding records while restricting writes to authenticated users.
+ * This ruleset prioritizes security and data ownership, enforcing strict control
+ * over who can access and modify data. It assumes anonymous authentication for
+ * ease of prototyping but relies on properly structured data and denormalization
+ * to maintain security.
  *
  * Data Structure:
- * - /employees/{employeeId}: Stores employee profiles, where {employeeId} is the
- *   employee's unique identifier. Only the employee themselves can read/write their own profile.
- * - /feedingRecords/{recordId}: Stores records of meal consumptions. These records are publicly readable
- *   but can only be created, updated, or deleted by authenticated users.
+ * - /employees/{employeeId}: Stores employee profiles, with the employeeId
+ *   being the document ID.
+ * - /feedingRecords/{recordId}: Stores records of employee meal consumption.
+ * - /biometrics/{employeeId}: Stores biometric data for each employee, with
+ *   employeeId as the document ID.
  *
  * Key Security Decisions:
- * - Employee listing is explicitly denied to prevent unauthorized access to employee data.
- * - Feeding records are publicly readable to facilitate reporting and monitoring.
+ * - Employees can only read their own profile data and biometric information.
+ * - Meal consumption records are publicly readable for reporting purposes.
+ *   However, creating, updating, or deleting these records is restricted.
+ * - No user listing is allowed for any collection.
+ * - Anonymous authentication is used. In a production environment, this should
+ *   be replaced with a more secure authentication method.
  *
  * Denormalization for Authorization:
- * - The `FeedingRecord` entity contains `employeeId` and `employeeName` directly within the document.
- *   This avoids needing to perform additional `get()` operations to verify the employee's identity
- *   when creating feeding records.
+ * - The `FeedingRecord` includes the `employeeId`, `employeeName`, and
+ *   `department` to avoid requiring additional reads for authorization and
+ *   display purposes.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Protects employee profiles. Only the employee themselves can read, update, or delete their profile.
+     * @description Controls access to employee profiles.
      * @path /employees/{employeeId}
-     * @allow (get, update, delete) User with UID 'employee123' can read, update, or delete the /employees/employee123 document.
-     * @allow (create) User with UID 'employee123' can create the /employees/employee123 document only if employeeId in the request data also equals 'employee123'
-     * @deny (get, update, delete) User with UID 'anotherUser' cannot read, update, or delete the /employees/employee123 document.
-     * @deny (create) User with UID 'employee456' cannot create the /employees/employee123 document.
-     * @principle Enforces document ownership for writes.
+     * @allow (get, list) Authenticated user can read their own profile.
+     * @allow (create, update, delete) Authenticated user can only modify their own profile.
+     * @deny (get, list) Non-authenticated user cannot read employee profiles.
+     * @deny (create, update, delete) Non-authenticated user cannot modify employee profiles.
+     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
      */
     match /employees/{employeeId} {
-      // Helper function to check if the user is the owner of the document.
-      function isOwner(employeeId) {
-        return request.auth != null && request.auth.uid == employeeId;
-      }
-
-      // Helper function to check if the user is the existing owner of the document
-      // and that the document exists.
-      function isExistingOwner(employeeId) {
-        return isOwner(employeeId) && resource != null;
-      }
-
-      // Allows a user to create their own employee document, enforcing the request.auth.uid == employeeId
-      allow create: if isOwner(employeeId) && request.resource.data.employeeId == employeeId;
-
-      // Allows a user to read their own employee document
-      allow get: if isOwner(employeeId);
-
-      // Allows a user to update their own employee document
-      allow update: if isExistingOwner(employeeId) && request.resource.data.employeeId == resource.data.employeeId;
-
-      // Allows a user to delete their own employee document
-      allow delete: if isExistingOwner(employeeId);
-
-      // Listing all employees is not allowed.
+      allow get: if isSignedIn() && isOwner(employeeId);
       allow list: if false;
+      allow create: if isSignedIn() && isOwner(employeeId);
+      allow update: if isSignedIn() && isExistingOwner(employeeId);
+      allow delete: if isSignedIn() && isExistingOwner(employeeId);
     }
 
     /**
-     * @description Allows public read access to feeding records, but restricts write access to authenticated users.
+     * @description Controls access to feeding records.
      * @path /feedingRecords/{recordId}
-     * @allow (get, list) Any user (or unauthenticated user) can read the feeding records.
-     * @allow (create) Authenticated users can create feeding records.
-     * @deny (update, delete) Only authenticated users can update or delete feeding records.
-     * @principle Allows public read access with owner-only writes.
+     * @allow (get, list) Anyone can read feeding records for public reporting.
+     * @deny (create, update, delete) Only authorized personnel (e.g., admin) can modify feeding records.
+     * @principle Allows public read access but restricts write access to authorized users.
      */
     match /feedingRecords/{recordId} {
-      // Allows anyone to read feeding records.
       allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add admin role check
+    }
 
-      // Only authenticated users can create feeding records.
-      allow create: if request.auth != null;
+    /**
+     * @description Controls access to biometric data.
+     * @path /biometrics/{employeeId}
+     * @allow (get) Authenticated user can read their own biometric data.
+     * @allow (create, update, delete) Authenticated user can only modify their own biometric data.
+     * @deny (get, list) Non-authenticated user cannot read biometric data.
+     * @deny (create, update, delete) Non-authenticated user cannot modify biometric data.
+     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+     */
+    match /biometrics/{employeeId} {
+      allow get: if isSignedIn() && isOwner(employeeId);
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(employeeId);
+      allow update: if isSignedIn() && isExistingOwner(employeeId);
+      allow delete: if isSignedIn() && isExistingOwner(employeeId);
+    }
 
-      // Only authenticated users can update feeding records.
-      allow update: if request.auth != null && resource != null;
+    function isSignedIn() {
+      return request.auth != null;
+    }
 
-      // Only authenticated users can delete feeding records.
-      allow delete: if request.auth != null && resource != null;
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isExistingOwner(userId) {
+        return isSignedIn() && isOwner(userId) && resource != null;
     }
   }
 }

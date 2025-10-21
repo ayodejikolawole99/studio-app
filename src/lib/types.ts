@@ -5,7 +5,6 @@ export type Employee = {
   name: string;
   department: string;
   ticketBalance: number;
-  hasBiometric?: boolean; // This will be deprecated but kept for now
 };
 
 export type Biometric = {

@@ -127,8 +127,7 @@ export default function StaffList() {
     }
     const employeeRef = doc(firestore, 'employees', employeeData.id);
     
-    // The hasBiometric field is deprecated, so we don't save it.
-    const saveData: Omit<Employee, 'id' | 'hasBiometric'> & {employeeId: string} = {
+    const saveData: Omit<Employee, 'id'> & {employeeId: string} = {
         name: employeeData.name,
         department: employeeData.department,
         ticketBalance: employeeData.ticketBalance,
