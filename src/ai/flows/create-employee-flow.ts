@@ -20,10 +20,11 @@ type CreateEmployeeInput = z.infer<typeof CreateEmployeeInputSchema>;
 
 /**
  * Initializes the Firebase Admin SDK on the server, ensuring it only happens once.
- * It uses environment variables for credentials. This should run at the module level.
+ * It uses environment variables for credentials. This must run at the module level
+ * before any Firebase services are accessed.
  */
 if (!admin.apps.length) {
-    // Ensure environment variables are set for the server-side flow.
+    // This check is important on the server to prevent re-initialization.
     if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
         // This log is for server-side debugging. It won't be visible in the browser.
         console.error('Firebase Admin SDK environment variables are not set. The createEmployee flow will fail.');
