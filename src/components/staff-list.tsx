@@ -57,6 +57,9 @@ export default function StaffList() {
       try {
         const employeesRef = collection(firestore, 'employees');
         console.log(`[Inspect][StaffList] Creating query for name: '${searchTerm}'`);
+        // Note: Firestore string queries are case-sensitive and match prefixes.
+        // For a true "contains" or case-insensitive search, a more advanced setup like Algolia is needed.
+        // This search finds names that start with the searchTerm.
         const q = query(employeesRef, where('name', '>=', searchTerm), where('name', '<=', searchTerm + '\uf8ff'));
         const querySnapshot = await getDocs(q);
         const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
@@ -96,9 +99,12 @@ export default function StaffList() {
         return;
     }
     const employeeRef = doc(firestore, 'employees', employeeId);
-    deleteDoc(employeeRef)
+    // Also delete the biometric data
+    const biometricRef = doc(firestore, 'biometrics', employeeId);
+
+    Promise.all([deleteDoc(employeeRef), deleteDoc(biometricRef).catch(() => {})]) // Ignore error if biometric doesn't exist
       .then(() => {
-        console.log(`[Inspect][StaffList] Employee ${employeeId} deleted. Refreshing search results.`);
+        console.log(`[Inspect][StaffList] Employee ${employeeId} and their biometric data deleted. Refreshing search results.`);
         handleSearch();
         toast({ title: 'Success', description: 'Employee has been deleted.'});
       })
@@ -120,11 +126,12 @@ export default function StaffList() {
         return;
     }
     const employeeRef = doc(firestore, 'employees', employeeData.id);
-    const saveData = {
+    
+    // The hasBiometric field is deprecated, so we don't save it.
+    const saveData: Omit<Employee, 'id' | 'hasBiometric'> & {employeeId: string} = {
         name: employeeData.name,
         department: employeeData.department,
         ticketBalance: employeeData.ticketBalance,
-        hasBiometric: employeeData.hasBiometric,
         employeeId: employeeData.id // Ensure the employeeId is part of the document data
     };
     
@@ -162,7 +169,7 @@ export default function StaffList() {
           </div>
           <div className="flex gap-2 mt-4">
             <Input
-              placeholder="Search by exact name..."
+              placeholder="Search by name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -172,7 +179,7 @@ export default function StaffList() {
               <span className="ml-2 hidden sm:inline">Search</span>
             </Button>
           </div>
-           <p className="text-xs text-muted-foreground pt-1">Note: Search is case-sensitive and requires the full name.</p>
+           <p className="text-xs text-muted-foreground pt-1">Note: Search is case-sensitive and finds names that start with the search term.</p>
         </CardHeader>
         <CardContent>
             <Table>
@@ -214,7 +221,7 @@ export default function StaffList() {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    This will permanently delete the employee record.
+                                    This will permanently delete the employee record and any associated biometric data.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>

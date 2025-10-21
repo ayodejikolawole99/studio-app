@@ -20,10 +20,6 @@
         "ticketBalance": {
             "type": "number",
             "description": "The number of meal tickets the employee currently has."
-        },
-        "hasBiometric": {
-            "type": "boolean",
-            "description": "Indicates if biometric data has been enrolled for this employee."
         }
       },
       "required": [
@@ -62,6 +58,27 @@
         "department",
         "timestamp"
       ]
+    },
+    "Biometric": {
+        "title": "Biometric",
+        "type": "object",
+        "description": "Stores the biometric data for an employee.",
+        "properties": {
+            "employeeId": {
+                "type": "string",
+                "description": "The ID of the employee this biometric data belongs to. This is the document ID."
+            },
+            "template": {
+                "type": "string",
+                "description": "The biometric template data, usually a Base64 encoded string."
+            },
+            "enrolledAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Timestamp of when the biometric data was enrolled."
+            }
+        },
+        "required": ["employeeId", "template", "enrolledAt"]
     }
   },
   "auth": {
@@ -87,6 +104,15 @@
                     "$ref": "#/entities/FeedingRecord"
                 },
                 "description": "A log of all feeding events. Data is denormalized for efficient querying and reporting."
+            }
+        },
+        {
+            "path": "/biometrics/{employeeId}",
+            "definition": {
+                "schema": {
+                    "$ref": "#/entities/Biometric"
+                },
+                "description": "Stores the biometric template for each employee. The document ID is the employee's ID."
             }
         }
     ]

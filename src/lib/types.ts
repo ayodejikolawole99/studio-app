@@ -5,8 +5,15 @@ export type Employee = {
   name: string;
   department: string;
   ticketBalance: number;
-  hasBiometric?: boolean;
+  hasBiometric?: boolean; // This will be deprecated but kept for now
 };
+
+export type Biometric = {
+  id: string; // Document ID, same as employeeId
+  employeeId: string;
+  template: string; // The biometric data template
+  enrolledAt: Timestamp | Date;
+}
 
 export type FeedingRecord = {
   id: string; // Document ID from Firestore

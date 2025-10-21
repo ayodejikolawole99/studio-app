@@ -12,11 +12,15 @@ import {
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { useEffect, useState } from 'react';
-import type { Employee } from '@/lib/types';
+import { useEffect, useState, useTransition } from 'react';
+import type { Employee, Biometric } from '@/lib/types';
 import { Fingerprint, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { FirestorePermissionError, errorEmitter } from '@/firebase';
+
 
 const departments = ["Production", "Logistics", "Quality Assurance", "Human Resources", "Maintenance", "IT", "Finance"];
 
@@ -24,7 +28,7 @@ interface StaffEditDialogProps {
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
   employee: Employee | null;
-  onSave: (employee: Omit<Employee, 'id'> & { id: string }, isNew: boolean) => void;
+  onSave: (employee: Omit<Employee, 'id'> & { id: string }, isNew: boolean, biometricData?: Omit<Biometric,'id'|'enrolledAt'> ) => void;
 }
 
 export function StaffEditDialog({
@@ -33,63 +37,92 @@ export function StaffEditDialog({
   employee,
   onSave,
 }: StaffEditDialogProps) {
+  const firestore = useFirestore();
   const [name, setName] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [department, setDepartment] = useState('');
-  const [hasBiometric, setHasBiometric] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
+  const [isScanning, startBiometricScan] = useTransition();
   const { toast } = useToast();
+
+  const biometricRef = useMemoFirebase(() => 
+    firestore && employeeId ? doc(firestore, 'biometrics', employeeId) : null
+  , [firestore, employeeId]);
+  
+  const { data: biometricData, isLoading: isBiometricLoading } = useDoc<Biometric>(biometricRef);
+
+  const hasBiometric = !!biometricData;
 
   useEffect(() => {
     if (isOpen) {
       setName(employee?.name || '');
       setEmployeeId(employee?.id || '');
       setDepartment(employee?.department || '');
-      setHasBiometric(employee?.hasBiometric || false);
     } else {
       // Reset form when dialog is closed
       setName('');
       setEmployeeId('');
       setDepartment('');
-      setHasBiometric(false);
     }
   }, [isOpen, employee]);
 
   const handleBiometricScan = () => {
-    setIsScanning(true);
-    // TODO: Integrate with SecuGen WebAPI
-    setTimeout(() => {
-      setIsScanning(false);
-      setHasBiometric(true);
-      toast({
-        title: "Biometric Scan Successful",
-        description: "Fingerprint data has been captured (simulated).",
+    if (!employeeId) {
+       toast({
+        variant: "destructive",
+        title: "Employee ID Required",
+        description: "Please enter an Employee Number before scanning.",
       });
-    }, 1500);
+      return;
+    }
+    startBiometricScan(async () => {
+      // In a real app, this would call the SecuGen WebAPI.
+      // For now, we simulate the scan and create a biometric record.
+      const simulatedTemplate = `B64_TEMPLATE_${employeeId}_${Date.now()}`;
+      
+      if (!firestore) return;
+      
+      const newBiometricRef = doc(firestore, 'biometrics', employeeId);
+      const newBiometricData = {
+        employeeId: employeeId,
+        template: simulatedTemplate,
+        enrolledAt: serverTimestamp(),
+      };
+
+      try {
+        await setDoc(newBiometricRef, newBiometricData);
+        toast({
+          title: "Biometric Scan Successful",
+          description: "Fingerprint data has been captured and saved.",
+        });
+      } catch (error) {
+        console.error("Error saving biometric data:", error);
+        const permissionError = new FirestorePermissionError({
+          path: newBiometricRef.path,
+          operation: 'create',
+          requestResourceData: newBiometricData
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        toast({
+          variant: "destructive",
+          title: "Scan Failed",
+          description: "Could not save biometric data. Check permissions.",
+        });
+      }
+    });
   };
 
   const handleSave = () => {
-    if (!name) {
-      toast({ variant: "destructive", title: "Validation Error", description: "Employee name cannot be empty." });
-      return;
-    }
-    if (!employeeId) {
-      toast({ variant: "destructive", title: "Validation Error", description: "Employee number cannot be empty." });
-      return;
-    }
-    if (!department) {
-      toast({ variant: "destructive", title: "Validation Error", description: "Department cannot be empty." });
+    if (!name || !employeeId || !department) {
+      toast({ variant: "destructive", title: "Validation Error", description: "Please fill out all fields." });
       return;
     }
 
     const isNew = !employee;
-
     const employeeData: Omit<Employee, 'id'> & { id: string } = {
-      id: employeeId, // Use the state for employeeId, which is the document ID
+      id: employeeId,
       name,
       department,
-      ticketBalance: isNew ? 0 : (employee?.ticketBalance || 0), // Default to 0 tickets for new employees
-      hasBiometric,
+      ticketBalance: isNew ? 0 : (employee?.ticketBalance ?? 0),
     };
 
     onSave(employeeData, isNew);
@@ -138,9 +171,9 @@ export function StaffEditDialog({
                 </div>
               <div className="flex-grow">
                 <p className="text-sm text-muted-foreground">
-                  {hasBiometric ? "Biometric data is enrolled for this user." : "Capture the employee's fingerprint for authentication."}
+                  {isBiometricLoading ? "Checking for biometric data..." : (hasBiometric ? "Biometric data is enrolled for this user." : "Capture the employee's fingerprint for authentication.")}
                 </p>
-                <Button variant="outline" size="sm" onClick={handleBiometricScan} disabled={isScanning} className="mt-2">
+                <Button variant="outline" size="sm" onClick={handleBiometricScan} disabled={isScanning || !employeeId} className="mt-2">
                   {isScanning ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scanning...</> : (hasBiometric ? "Rescan Fingerprint" : "Scan Fingerprint")}
                 </Button>
               </div>

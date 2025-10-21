@@ -41,8 +41,14 @@ function AuthPageContent() {
     try {
       console.log(`[Inspect][AuthPage] Getting document for employee: employees/${employeeId}`);
       const employeeRef = doc(firestore, 'employees', employeeId);
-      const employeeSnap = await getDoc(employeeRef);
-      console.log(`[Inspect][AuthPage] Document snapshot received. Exists: ${employeeSnap.exists()}`);
+      const biometricRef = doc(firestore, 'biometrics', employeeId);
+
+      const [employeeSnap, biometricSnap] = await Promise.all([
+        getDoc(employeeRef),
+        getDoc(biometricRef)
+      ]);
+      
+      console.log(`[Inspect][AuthPage] Document snapshot received. Employee Exists: ${employeeSnap.exists()}, Biometric Exists: ${biometricSnap.exists()}`);
 
       if (!employeeSnap.exists()) {
         toast({ variant: "destructive", title: "Authentication Failed", description: "Employee ID not found." });
@@ -53,7 +59,7 @@ function AuthPageContent() {
       const employeeData = { ...employeeSnap.data(), id: employeeSnap.id } as Employee;
       console.log(`[Inspect][AuthPage] Employee data:`, employeeData);
 
-      if (!employeeData.hasBiometric) {
+      if (!biometricSnap.exists()) {
         toast({ variant: "destructive", title: "Authentication Failed", description: "No biometric data found for this employee." });
         setIsScanning(false);
         return;
@@ -66,6 +72,8 @@ function AuthPageContent() {
       }
 
       console.log('[Inspect][AuthPage] Simulating biometric scan...');
+      // In a real app, you'd use the template from biometricSnap.data() 
+      // and compare it with the scanner output.
       await new Promise(resolve => setTimeout(resolve, 1500));
 
       const newBalance = (employeeData.ticketBalance || 0) - 1;
@@ -121,6 +129,7 @@ function AuthPageContent() {
     } catch (error: any) {
         console.error(`[Inspect][AuthPage] Error during handleScan:`, error);
         setIsScanning(false);
+        // This could be a 'get' on either 'employees' or 'biometrics'
         const permissionError = new FirestorePermissionError({
             path: `employees/${employeeId}`, operation: 'get',
         });
