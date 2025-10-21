@@ -7,8 +7,9 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { initializeFirebase } from '@/firebase/index';
-import { doc, setDoc } from 'firebase/firestore';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getFirestore, doc, setDoc } from 'firebase/firestore';
+import { firebaseConfig } from '@/firebase/config';
 
 // The input schema is now defined in the client component that calls this flow.
 const CreateEmployeeInputSchema = z.object({
@@ -30,6 +31,15 @@ export async function createEmployee(employeeData: CreateEmployeeInput): Promise
   await createEmployeeFlow(employeeData);
 }
 
+// Server-side Firebase initialization
+function initializeServerFirebase() {
+  if (getApps().some(app => app.name === 'server-flow')) {
+    return getApp('server-flow');
+  }
+  return initializeApp(firebaseConfig, 'server-flow');
+}
+
+
 const createEmployeeFlow = ai.defineFlow(
   {
     name: 'createEmployeeFlow',
@@ -38,7 +48,8 @@ const createEmployeeFlow = ai.defineFlow(
   },
   async (employeeData) => {
     // We need to initialize Firebase on the server side for this flow.
-    const { firestore } = initializeFirebase();
+    const serverApp = initializeServerFirebase();
+    const firestore = getFirestore(serverApp);
     
     // The document ID will be the employeeId provided from the client.
     const employeeRef = doc(firestore, 'employees', employeeData.employeeId);
