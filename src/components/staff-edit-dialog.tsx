@@ -94,7 +94,7 @@ export function StaffEditDialog({
             toast({ variant: "destructive", title: "Validation Error", description: "Please fill out all fields, including Employee Number." });
             return;
         }
-        if (!firestore) {
+        if (!firestore && !isNewEmployee) {
             toast({ variant: 'destructive', title: 'Error', description: 'Database connection not available.' });
             return;
         }
@@ -109,7 +109,21 @@ export function StaffEditDialog({
                     biometricTemplate: biometricTemplate,
                     ticketBalance: 0,
                 };
-                await createEmployee(newEmployeeData);
+                const result = await createEmployee(newEmployeeData);
+
+                if (result.success) {
+                    toast({
+                        title: "Success",
+                        description: `Employee ${result.id} added successfully.`,
+                    });
+                    onSaveSuccess();
+                } else {
+                    toast({
+                        variant: "destructive",
+                        title: "Creation Failed",
+                        description: result.error || "An unknown error occurred.",
+                    });
+                }
             } else {
                 // Use standard client-side update for existing employees
                 const employeeRef = doc(firestore, 'employees', employeeId);
@@ -119,13 +133,12 @@ export function StaffEditDialog({
                     ...(biometricTemplate !== undefined && { biometricTemplate }),
                 };
                 await updateDoc(employeeRef, updatedData);
+                toast({
+                    title: "Success",
+                    description: `Employee updated successfully.`,
+                });
+                onSaveSuccess();
             }
-
-            toast({
-                title: "Success",
-                description: `Employee ${isNewEmployee ? 'added' : 'updated'} successfully.`,
-            });
-            onSaveSuccess();
         } catch (error) {
             console.error("[Inspect][StaffEditDialog] Error saving employee: ", error);
             const employeeRef = doc(firestore, 'employees', employeeId);
