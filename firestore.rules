@@ -1,79 +1,70 @@
 /**
- * @fileoverview Firestore Security Rules for the canteen system.
- *
- * Core Philosophy:
- * This ruleset prioritizes security by default, restricting access to employee records and allowing public read access to feeding records.
- * Write access to employee records is denied to all users except those with the 'admin' role, enforced through custom claims.
- * Feeding records are publicly readable but only admin users may create them.
+ * @description This ruleset enforces a role-based access control model for managing employees and tracking feeding records.
  *
  * Data Structure:
- * - /employees/{employeeId}: Stores employee profile data, with the employeeId used as the document ID.
- * - /feedingRecords/{recordId}: Stores records of employee meal consumption.
+ * - /employees/{employeeId}: Stores employee profiles, with the employeeId used as the document ID.
+ * - /feedingRecords/{recordId}: Stores records of meal consumption events.
  *
  * Key Security Decisions:
- * - Employee listing is disabled to protect employee privacy.
- * - The 'admin' custom claim is the sole means of gaining elevated privileges.
+ * - Only authenticated admins can create, update, or delete employee profiles.
+ * - Employees can only read their own profile data.
+ * - Feeding records are publicly readable, but creation, update, and deletion are disallowed.
+ * - The system uses anonymous authentication, but admin privileges are determined by a custom claim set on the user's token.
  *
  * Denormalization for Authorization:
- * - An 'admin' custom claim is required on the `request.auth.token` to perform `create`, `update`, and `delete` operations on the `employees` collection.
- *
- * Structural Segregation:
- * - This ruleset does not implement structural segregation, as there is no separation of private and public employee data.
+ * - Employee profiles are stored directly under /employees/{employeeId} and are secured based on the employeeId matching the authenticated user's UID. This avoids the need for additional queries to determine ownership.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages employee profiles. Only admins can create, update, or delete employee records. Regular employees can only read their own records. Listing employees is denied.
+     * @description Manages employee profiles, restricting write access to admins and read access to the employee themselves.
      * @path /employees/{employeeId}
-     * @allow (create) - An admin user with the 'admin' custom claim can create a new employee record.
-     * @allow (read) - If the user's UID is equal to the employeeId they are trying to read.
-     * @allow (update) - An admin user with the 'admin' custom claim can update an existing employee record.
-     * @allow (delete) - An admin user with the 'admin' custom claim can delete an existing employee record.
-     * @deny (create) - A non-admin user attempts to create an employee record.
-     * @deny (read) - A user attempts to read an employee record that does not belong to them.
-     * @deny (update) - A non-admin user attempts to update an employee record.
-     * @deny (delete) - A non-admin user attempts to delete an employee record.
-     * @principle Enforces role-based access control and document ownership.
+     * @allow (create) - An admin creates a new employee profile. `request.auth.token.admin == true`
+     * @allow (read) - An employee reads their own profile. `request.auth.uid == employeeId`
+     * @deny (create) - A non-admin attempts to create an employee profile. `request.auth.token.admin == false`
+     * @deny (read) - An employee attempts to read another employee's profile. `request.auth.uid != employeeId`
+     * @principle Enforces role-based access control: admins manage staff, employees read themselves.
      */
     match /employees/{employeeId} {
-      allow get: if isSignedIn() && request.auth.uid == employeeId;
+      // Admins can create/update/delete
+      allow create, update, delete: if isSignedIn() && isAdmin();
+
+      // Employees can read their own record
+      allow get: if isSignedIn() && isOwner(employeeId);
       allow list: if false;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && isExistingDocument();
-      allow delete: if isAdmin() && isExistingDocument();
     }
 
     /**
-     * @description Manages feeding records. Anyone can read the feeding records, but only admins can create them. Updates and deletes are not allowed.
+     * @description Logs feeding events, making the records publicly readable but disallowing any modifications.
      * @path /feedingRecords/{recordId}
-     * @allow (get) - Any user, even unauthenticated, can read feeding records.
-     * @allow (list) - Any user, even unauthenticated, can list feeding records.
-     * @allow (create) - An admin user with the 'admin' custom claim can create a new feeding record.
-     * @deny (create) - A non-admin user attempts to create a feeding record.
-     * @deny (update) - Any user attempts to update a feeding record.
-     * @deny (delete) - Any user attempts to delete a feeding record.
-     * @principle Allows public read access with restricted write access.
+     * @allow (read) - Anyone can read the feeding records.
+     * @deny (create) - No one can create a feeding record through the client.
+     * @deny (update) - No one can update a feeding record through the client.
+     * @deny (delete) - No one can delete a feeding record through the client.
+     * @principle Public read access with no modifications allowed.
      */
     match /feedingRecords/{recordId} {
       allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if false;
-      allow delete: if false;
+      allow create, update, delete: if false;
     }
 
-    // Helper functions
+    // ---- Helper functions ----
+
+    // Checks if the user is signed in
     function isSignedIn() {
       return request.auth != null;
     }
 
+    // Checks if the user is an admin based on the custom claim
     function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
+      return request.auth.token.admin == true;
     }
 
-    function isExistingDocument() {
-      return resource != null;
+    // Checks if the authenticated user's UID matches the provided userId
+    function isOwner(userId) {
+      return request.auth.uid == userId;
     }
   }
 }

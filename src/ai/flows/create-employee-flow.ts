@@ -1,14 +1,13 @@
 'use server';
 /**
  * @fileOverview A server-side flow to create a new employee in Firestore.
- * This flow uses the Firebase Admin SDK to bypass client-side security rules
- * that may prevent document creation.
+ * This flow uses the Firebase Admin SDK to bypass client-side security rules.
  */
 
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
 
-// This is the schema for the data coming from the client.
+// Define the input schema for the employee data.
 const CreateEmployeeInputSchema = z.object({
   name: z.string(),
   employeeId: z.string(),
@@ -21,27 +20,28 @@ type CreateEmployeeInput = z.infer<typeof CreateEmployeeInputSchema>;
 
 /**
  * Initializes the Firebase Admin SDK on the server, ensuring it only happens once.
- * It uses environment variables for credentials.
+ * It uses environment variables for credentials. This should run at the module level.
  */
-function initializeServerFirebase() {
-  if (!admin.apps.length) {
-    // Ensure environment variables are set.
+if (!admin.apps.length) {
+    // Ensure environment variables are set for the server-side flow.
     if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
-        throw new Error('Firebase Admin SDK environment variables are not set.');
+        // This log is for server-side debugging. It won't be visible in the browser.
+        console.error('Firebase Admin SDK environment variables are not set. The createEmployee flow will fail.');
+    } else {
+        try {
+            admin.initializeApp({
+              credential: admin.credential.cert({
+                projectId: process.env.FIREBASE_PROJECT_ID,
+                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                // The private key from the environment variable needs to have its newlines restored.
+                privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+              }),
+            });
+        } catch (error) {
+            console.error('Firebase Admin SDK initialization failed:', error);
+        }
     }
-    
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        // The private key from the environment variable needs to have its newlines restored.
-        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      }),
-    });
-  }
-  return admin;
 }
-
 
 /**
  * A server-side async function (Server Action) to create an employee document in Firestore.
@@ -53,8 +53,11 @@ export async function createEmployee(employeeData: CreateEmployeeInput): Promise
   // Validate input data against the schema.
   const validatedData = CreateEmployeeInputSchema.parse(employeeData);
   
-  const serverAdmin = initializeServerFirebase();
-  const firestore = serverAdmin.firestore();
+  if (!admin.apps.length) {
+      throw new Error('Firebase Admin SDK is not initialized. Cannot create employee.');
+  }
+  
+  const firestore = admin.firestore();
   
   // The document ID will be the employeeId provided from the client.
   const employeeRef = firestore.collection('employees').doc(validatedData.employeeId);
