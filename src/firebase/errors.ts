@@ -1,4 +1,6 @@
 'use client';
+import { getAuth } from 'firebase/auth';
+import { initializeFirebase } from './index';
 
 type SecurityRuleContext = {
   path: string;
@@ -8,7 +10,7 @@ type SecurityRuleContext = {
 
 
 interface SecurityRuleRequest {
-  auth: null; // Auth object is null since we removed authentication
+  auth: object | null;
   method: string;
   path: string;
   resource?: {
@@ -17,12 +19,25 @@ interface SecurityRuleRequest {
 }
 
 function buildRequestObject(context: SecurityRuleContext): SecurityRuleRequest {
-  return {
-    auth: null,
-    method: context.operation,
-    path: `/databases/(default)/documents/${context.path}`,
-    resource: context.requestResourceData ? { data: context.requestResourceData } : undefined,
-  };
+    const { auth } = initializeFirebase();
+    const currentUser = auth.currentUser;
+
+    return {
+        auth: currentUser ? {
+            uid: currentUser.uid,
+            token: {
+                // This is a simplified representation. 
+                // In a real scenario, you might decode the token if needed,
+                // but for debugging, uid is often sufficient.
+                uid: currentUser.uid,
+                email: currentUser.email,
+                name: currentUser.displayName
+            }
+        } : null,
+        method: context.operation,
+        path: `/databases/(default)/documents/${context.path}`,
+        resource: context.requestResourceData ? { data: context.requestResourceData } : undefined,
+    };
 }
 
 function buildErrorMessage(requestObject: SecurityRuleRequest): string {

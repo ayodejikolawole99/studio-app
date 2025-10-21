@@ -2,48 +2,48 @@
  * @fileoverview Firestore Security Rules for the Canteen System.
  *
  * Core Philosophy:
- * This ruleset prioritizes security and data ownership, enforcing strict control
- * over who can access and modify data. It assumes anonymous authentication for
- * ease of prototyping but relies on properly structured data and denormalization
- * to maintain security.
+ * This ruleset prioritizes security and data ownership, especially given the sensitive nature of employee data.
+ * It defaults to strict access control, requiring explicit rules to allow any read or write operation.
+ * All data is organized in top-level collections: `/employees/{employeeId}`, `/feedingRecords/{recordId}`, and `/biometrics/{employeeId}`.
  *
  * Data Structure:
- * - /employees/{employeeId}: Stores employee profiles, with the employeeId
- *   being the document ID.
- * - /feedingRecords/{recordId}: Stores records of employee meal consumption.
- * - /biometrics/{employeeId}: Stores biometric data for each employee, with
- *   employeeId as the document ID.
+ * - `/employees/{employeeId}`: Stores employee profiles. The document ID is the official employee number. Access is restricted to authenticated users.
+ * - `/feedingRecords/{recordId}`: Stores records of employee meal consumption. Open read access is granted to this collection to allow public reporting. Writes are disallowed for prototyping.
+ * - `/biometrics/{employeeId}`: Stores biometric data for employees. Access is currently open for reads only for prototyping, but this MUST be secured in the future.
  *
  * Key Security Decisions:
- * - Employees can only read their own profile data and biometric information.
- * - Meal consumption records are publicly readable for reporting purposes.
- *   However, creating, updating, or deleting these records is restricted.
- * - No user listing is allowed for any collection.
- * - Anonymous authentication is used. In a production environment, this should
- *   be replaced with a more secure authentication method.
+ * - Listing of employees is disabled to protect employee privacy.
+ * - Biometric data access is currently open for prototyping but requires immediate attention to restrict it properly.
+ * - All write operations require authentication (`request.auth != null`).
  *
  * Denormalization for Authorization:
- * - The `FeedingRecord` includes the `employeeId`, `employeeName`, and
- *   `department` to avoid requiring additional reads for authorization and
- *   display purposes.
+ *  - The current data model does not require denormalization. However, if more complex access control is needed (e.g., department-based access), consider denormalizing department information into the `biometrics` and `feedingRecords` documents.
+ *
+ * Structural Segregation:
+ *  - No structural segregation is needed in the current data model. If there were a need to store public vs. private employee data, consider creating a separate `/publicEmployees` collection.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to employee profiles.
+     * @description Manages access to employee profiles.
      * @path /employees/{employeeId}
-     * @allow (get, list) Authenticated user can read their own profile.
-     * @allow (create, update, delete) Authenticated user can only modify their own profile.
-     * @deny (get, list) Non-authenticated user cannot read employee profiles.
-     * @deny (create, update, delete) Non-authenticated user cannot modify employee profiles.
-     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+     * @allow (create) Authenticated user can create their own profile if the employeeId matches their auth UID.
+     * @deny (create) If the employeeId does not match the authenticated user's id.
+     * @allow (get) Authenticated user can get their own profile if the employeeId matches their auth UID.
+     * @deny (get) If the employeeId does not match the authenticated user's id.
+     * @deny (list) Listing all employees is not allowed to protect privacy.
+     * @allow (update) Authenticated user can update their own profile if the employeeId matches their auth UID.
+     * @deny (update) If the employeeId does not match the authenticated user's id.
+     * @allow (delete) Authenticated user can delete their own profile if the employeeId matches their auth UID and the document exists.
+     * @deny (delete) If the employeeId does not match the authenticated user's id.
+     * @principle Enforces document ownership for writes and restricts listing to protect privacy.
      */
     match /employees/{employeeId} {
-      allow get: if isSignedIn() && isOwner(employeeId);
+      allow create: if isSignedIn() && request.auth.uid == employeeId;
+      allow get: if isSignedIn() && request.auth.uid == employeeId;
       allow list: if false;
-      allow create: if isSignedIn() && isOwner(employeeId);
       allow update: if isSignedIn() && isExistingOwner(employeeId);
       allow delete: if isSignedIn() && isExistingOwner(employeeId);
     }
@@ -51,30 +51,34 @@ service cloud.firestore {
     /**
      * @description Controls access to feeding records.
      * @path /feedingRecords/{recordId}
-     * @allow (get, list) Anyone can read feeding records for public reporting.
-     * @deny (create, update, delete) Only authorized personnel (e.g., admin) can modify feeding records.
-     * @principle Allows public read access but restricts write access to authorized users.
+     * @allow (get) Anyone can read feeding records.
+     * @allow (list) Anyone can list feeding records.
+     * @deny (create) No one can create feeding records for now.
+     * @deny (update) No one can update feeding records for now.
+     * @deny (delete) No one can delete feeding records for now.
      */
     match /feedingRecords/{recordId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add admin role check
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Controls access to biometric data.
+     * @description Manages access to employee biometric data.
      * @path /biometrics/{employeeId}
-     * @allow (get) Authenticated user can read their own biometric data.
-     * @allow (create, update, delete) Authenticated user can only modify their own biometric data.
-     * @deny (get, list) Non-authenticated user cannot read biometric data.
-     * @deny (create, update, delete) Non-authenticated user cannot modify biometric data.
-     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+     * @allow (get) Anyone can read biometric data. THIS IS FOR PROTOTYPING ONLY.
+     * @allow (list) Listing biometrics data. THIS IS FOR PROTOTYPING ONLY.
+     * @deny (create) No one can create biometric data for now.
+     * @deny (update) No one can update biometric data for now.
+     * @deny (delete) No one can delete biometric data for now.
+     * @principle Currently allows public read access for prototyping, but MUST be secured in production.
      */
     match /biometrics/{employeeId} {
-      allow get: if isSignedIn() && isOwner(employeeId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(employeeId);
-      allow update: if isSignedIn() && isExistingOwner(employeeId);
-      allow delete: if isSignedIn() && isExistingOwner(employeeId);
+        allow get, list: if true;  // TODO: Secure this endpoint immediately.
+        allow create: if false;
+        allow update: if false;
+        allow delete: if false;
     }
 
     function isSignedIn() {
@@ -82,7 +86,7 @@ service cloud.firestore {
     }
 
     function isOwner(userId) {
-      return request.auth.uid == userId;
+        return request.auth.uid == userId;
     }
 
     function isExistingOwner(userId) {

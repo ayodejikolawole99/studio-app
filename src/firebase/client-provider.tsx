@@ -9,9 +9,12 @@ function AnonymousAuth() {
   const auth = useAuth();
   useEffect(() => {
     if (auth) {
-      signInAnonymously(auth).catch((error) => {
-        console.error("Anonymous sign-in failed:", error);
-      });
+      // Sign in anonymously if there's no user.
+      if (!auth.currentUser) {
+        signInAnonymously(auth).catch((error) => {
+          console.error("Anonymous sign-in failed:", error);
+        });
+      }
     }
   }, [auth]);
 
