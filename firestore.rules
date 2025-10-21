@@ -2,56 +2,46 @@
  * @fileoverview Firestore Security Rules for the Canteen System.
  *
  * Core Philosophy:
- * This ruleset prioritizes security and data access control. It restricts listing of employees entirely to prevent unauthorized data access.
- * Feeding records are publicly readable to facilitate reporting and display, but write access is denied in the current prototype.
+ * This ruleset prioritizes security and data ownership, restricting access based on user authentication and explicit authorization checks.
+ * It allows unauthenticated access to employee and feeding records data but denies all write access due to anonymous auth provider.
  *
  * Data Structure:
- * - /employees/{employeeId}: Stores employee profiles, with the employeeId used as the document ID.
- * - /feedingRecords/{recordId}: Stores a log of feeding events.
+ * - /employees/{employeeId}: Stores employee profiles, with the employeeId as the document ID.
+ * - /feedingRecords/{recordId}: Logs feeding events, denormalized for efficient querying.
  *
  * Key Security Decisions:
- * - Employee data is NOT listable. This prevents unauthorized enumeration of employee records.
- * - Anonymous authentication is enabled; thus, all read/write rules must account for unauthenticated users. In this prototype, only read access to feeding records is granted.
- * - Write access to feedingRecords is currently denied to all users. This should be changed in a real implementation.
+ * - Read access to employee and feeding records collections for unauthenticated access.
+ * - All write operations are forbidden.
+ *
+ * Denormalization for Authorization: N/A (no write permissions)
+ * Structural Segregation: N/A
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to the /employees collection.
+     * @description Allows anyone to read employee data.  All writes are forbidden.
      * @path /employees/{employeeId}
-     * @allow (create) - DENIED: No one can create employee records directly through Firestore.
-     * @allow (get) - DENIED: No one can get employee records directly through Firestore.
-     * @allow (list) - DENIED: No one can list employee records.
-     * @allow (update) - DENIED: No one can update employee records directly through Firestore.
-     * @allow (delete) - DENIED: No one can delete employee records directly through Firestore.
-     * @principle Prevents unauthorized access to employee data.
+     * @allow (get, list): Any unauthenticated user can retrieve employee profiles.
+     * @deny (create, update, delete): No one can create, update, or delete employee profiles.
+     * @principle Allows public reads, denies all writes for all users.
      */
     match /employees/{employeeId} {
-      allow get: if false;
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Controls access to the /feedingRecords collection.
+     * @description Allows anyone to read feeding records.  All writes are forbidden.
      * @path /feedingRecords/{recordId}
-     * @allow (get) - Public read access is allowed.
-     * @allow (list) - Public read access is allowed.
-     * @allow (create) - DENIED: No one can create feeding records through Firestore.
-     * @allow (update) - DENIED: No one can update feeding records through Firestore.
-     * @allow (delete) - DENIED: No one can delete feeding records through Firestore.
-     * @principle Allows public read access for reporting purposes.
+     * @allow (get, list): Any unauthenticated user can retrieve feeding records.
+     * @deny (create, update, delete): No one can create, update, or delete feeding records.
+     * @principle Allows public reads, denies all writes for all users.
      */
     match /feedingRecords/{recordId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
   }
 }

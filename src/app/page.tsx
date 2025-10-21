@@ -6,10 +6,13 @@ import type { Employee } from '@/lib/types';
 import BiometricScanner from '@/components/biometric-scanner';
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from 'lucide-react';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, writeBatch, serverTimestamp, addDoc, updateDoc } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
+import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 function AuthPageContent() {
+  const [employeeId, setEmployeeId] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authenticatedEmployee, setAuthenticatedEmployee] = useState<Employee | null>(null);
@@ -17,12 +20,13 @@ function AuthPageContent() {
   const { toast } = useToast();
   const firestore = useFirestore();
 
-  const employeesRef = useMemoFirebase(() => firestore ? collection(firestore, 'employees') : null, [firestore]);
-  const { data: employees, isLoading: areEmployeesLoading } = useCollection<Employee>(employeesRef);
-
   const handleScan = async () => {
-    if (areEmployeesLoading || !employees || employees.length === 0) {
-      toast({ variant: "destructive", title: "System Not Ready", description: "Employee data is not loaded yet. Please wait." });
+    if (!employeeId) {
+      toast({ variant: "destructive", title: "Input Required", description: "Please enter your Employee ID." });
+      return;
+    }
+    if (!firestore) {
+      toast({ variant: "destructive", title: "System Not Ready", description: "Database is not connected." });
       return;
     }
 
@@ -30,127 +34,122 @@ function AuthPageContent() {
     setIsAuthenticated(false);
     setAuthenticatedEmployee(null);
 
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const eligibleEmployees = employees.filter(e => (e.ticketBalance || 0) > 0 && e.hasBiometric);
-    if (eligibleEmployees.length === 0) {
-        setIsScanning(false);
-        toast({
-            variant: "destructive",
-            title: "Authentication Failed",
-            description: "No eligible employees with tickets and biometrics found.",
-        });
-        return;
-    }
-    
-    const randomEmployee = eligibleEmployees[Math.floor(Math.random() * eligibleEmployees.length)];
-    const employeeId = randomEmployee.id;
-
-    if (!firestore) {
-      toast({ variant: "destructive", title: "Database Error", description: "Firestore is not available." });
-      setIsScanning(false);
-      return;
-    }
-
     try {
-        const employeeRef = doc(firestore, 'employees', employeeId);
-        const newBalance = (randomEmployee.ticketBalance || 0) - 1;
-        
-        // Use a non-blocking update for the employee's ticket balance
-        updateDoc(employeeRef, { ticketBalance: newBalance }).catch(async (serverError) => {
-            const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
-            const permissionError = new FirestorePermissionError({
-                path: employeeRef.path,
-                operation: 'update',
-                requestResourceData: { ticketBalance: newBalance },
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
+      const employeeRef = doc(firestore, 'employees', employeeId);
+      const employeeSnap = await getDoc(employeeRef);
 
-        // Use a non-blocking add for the feeding record
-        const feedingRecordRef = collection(firestore, 'feedingRecords');
-        const newFeedingRecord = {
-          employeeId: randomEmployee.id,
-          employeeName: randomEmployee.name,
-          department: randomEmployee.department,
-          timestamp: serverTimestamp()
-        };
-        addDoc(feedingRecordRef, newFeedingRecord).catch(async (serverError) => {
-            const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
-            const permissionError = new FirestorePermissionError({
-                path: feedingRecordRef.path,
-                operation: 'create',
-                requestResourceData: newFeedingRecord,
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
-
-        const updatedEmployee: Employee = { ...randomEmployee, ticketBalance: newBalance };
-
-        const ticketId = `TICKET-${Date.now()}`;
-        
+      if (!employeeSnap.exists()) {
+        toast({ variant: "destructive", title: "Authentication Failed", description: "Employee ID not found." });
         setIsScanning(false);
-        setIsAuthenticated(true);
-        setAuthenticatedEmployee(updatedEmployee);
+        return;
+      }
+      
+      const employeeData = { ...employeeSnap.data(), id: employeeSnap.id } as Employee;
 
-        toast({
-            title: "Authentication Successful",
-            description: `Welcome, ${updatedEmployee.name}. Generating your ticket...`,
-        });
-            
-        const ticketDataForPage = {
-            ticketId: ticketId,
-            employeeName: updatedEmployee.name,
-            department: updatedEmployee.department,
-            timestamp: new Date().toISOString(),
-        };
+      if (!employeeData.hasBiometric) {
+        toast({ variant: "destructive", title: "Authentication Failed", description: "No biometric data found for this employee." });
+        setIsScanning(false);
+        return;
+      }
 
-        const params = new URLSearchParams({
-            ticket: JSON.stringify(ticketDataForPage),
-        });
-        router.push(`/ticket?${params.toString()}`);
+      if ((employeeData.ticketBalance || 0) <= 0) {
+        toast({ variant: "destructive", title: "Authentication Failed", description: "You have no meal tickets left." });
+        setIsScanning(false);
+        return;
+      }
+
+      // Simulate biometric scan
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Non-blocking updates
+      const newBalance = (employeeData.ticketBalance || 0) - 1;
+      updateDoc(employeeRef, { ticketBalance: newBalance }).catch(async (serverError) => {
+          const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
+          const permissionError = new FirestorePermissionError({
+              path: employeeRef.path, operation: 'update', requestResourceData: { ticketBalance: newBalance },
+          });
+          errorEmitter.emit('permission-error', permissionError);
+      });
+
+      const feedingRecordRef = collection(firestore, 'feedingRecords');
+      const newFeedingRecord = {
+        employeeId: employeeData.id,
+        employeeName: employeeData.name,
+        department: employeeData.department,
+        timestamp: serverTimestamp()
+      };
+      addDoc(feedingRecordRef, newFeedingRecord).catch(async (serverError) => {
+          const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
+          const permissionError = new FirestorePermissionError({
+              path: feedingRecordRef.path, operation: 'create', requestResourceData: newFeedingRecord,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+      });
+
+      const updatedEmployee: Employee = { ...employeeData, ticketBalance: newBalance };
+      const ticketId = `TICKET-${Date.now()}`;
+      
+      setIsScanning(false);
+      setIsAuthenticated(true);
+      setAuthenticatedEmployee(updatedEmployee);
+
+      toast({
+          title: "Authentication Successful",
+          description: `Welcome, ${updatedEmployee.name}. Generating your ticket...`,
+      });
+          
+      const ticketDataForPage = {
+          ticketId: ticketId,
+          employeeName: updatedEmployee.name,
+          department: updatedEmployee.department,
+          timestamp: new Date().toISOString(),
+      };
+
+      const params = new URLSearchParams({ ticket: JSON.stringify(ticketDataForPage) });
+      router.push(`/ticket?${params.toString()}`);
 
     } catch (error: any) {
         setIsScanning(false);
+        const { FirestorePermissionError, errorEmitter } = await import('@/firebase');
+        const permissionError = new FirestorePermissionError({
+            path: `employees/${employeeId}`, operation: 'get',
+        });
+        errorEmitter.emit('permission-error', permissionError);
         console.error("An unexpected error occurred: ", error);
         toast({
             variant: "destructive",
             title: "Operation Failed",
-            description: error.message || "An unexpected error occurred.",
+            description: "Could not verify employee. Check permissions or employee ID.",
         });
     }
   };
 
-  if (areEmployeesLoading) {
-    return (
-        <div className="flex h-screen w-full items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="ml-4 text-muted-foreground">Loading employee data...</p>
-        </div>
-    );
-  }
-
   return (
     <>
-      <div 
-        className="fixed inset-0 -z-10 bg-background/50"
-      ></div>
+      <div className="fixed inset-0 -z-10 bg-background/50"></div>
        <div 
         className="fixed inset-0 -z-20 bg-contain bg-no-repeat bg-center opacity-10"
         style={{backgroundImage: "url('https://upload.wikimedia.org/wikipedia/commons/3/3d/Graphic_Packaging_International_Logo.jpg')"}}
       ></div>
-      <main 
-        className="min-h-screen flex items-center justify-center bg-transparent p-4"
-      >
+      <main className="min-h-screen flex items-center justify-center bg-transparent p-4">
           <div className="w-full max-w-md">
               <header className="mb-8 text-center bg-background/80 backdrop-blur-sm p-4 rounded-xl">
                   <h1 className="font-headline text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
                   Canteen Biometric
                   </h1>
                   <p className="mt-2 text-lg text-muted-foreground">
-                  Please scan your fingerprint to generate your meal ticket.
+                    Enter your ID and scan your fingerprint to generate a meal ticket.
                   </p>
               </header>
+              <div className="space-y-4 mb-4">
+                <Input 
+                  type="text"
+                  placeholder="Enter Your Employee ID"
+                  value={employeeId}
+                  onChange={(e) => setEmployeeId(e.target.value.toUpperCase())}
+                  className="text-center text-lg h-12"
+                />
+              </div>
               <BiometricScanner
                   onScan={handleScan}
                   isScanning={isScanning}
