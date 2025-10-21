@@ -127,11 +127,12 @@ export default function StaffList() {
     }
     const employeeRef = doc(firestore, 'employees', employeeData.id);
     
-    const saveData: Omit<Employee, 'id'> & {employeeId: string} = {
+    // The employeeData object is now the complete source of truth.
+    const saveData = {
         name: employeeData.name,
         department: employeeData.department,
         ticketBalance: employeeData.ticketBalance,
-        employeeId: employeeData.id // Ensure the employeeId is part of the document data
+        employeeId: employeeData.employeeId,
     };
     
     setDoc(employeeRef, saveData, { merge: !isNew })

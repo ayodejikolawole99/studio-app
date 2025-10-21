@@ -11,7 +11,7 @@
         },
         "employeeId": {
           "type": "string",
-          "description": "The employee's official ID number, used as the document ID."
+          "description": "The employee's official ID number. If biometric is enrolled, this matches the ID."
         },
         "department": {
           "type": "string",
@@ -24,7 +24,6 @@
       },
       "required": [
         "name",
-        "employeeId",
         "department",
         "ticketBalance"
       ]

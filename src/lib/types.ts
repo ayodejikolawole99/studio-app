@@ -5,6 +5,7 @@ export type Employee = {
   name: string;
   department: string;
   ticketBalance: number;
+  employeeId: string;
 };
 
 export type Biometric = {
@@ -15,7 +16,7 @@ export type Biometric = {
 }
 
 export type FeedingRecord = {
-  id: string; // Document ID from Firestore
+  id:string; // Document ID from Firestore
   employeeId: string;
   employeeName: string;
   department: string;

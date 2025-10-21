@@ -41,14 +41,10 @@ function AuthPageContent() {
     try {
       console.log(`[Inspect][AuthPage] Getting document for employee: employees/${employeeId}`);
       const employeeRef = doc(firestore, 'employees', employeeId);
-      const biometricRef = doc(firestore, 'biometrics', employeeId);
-
-      const [employeeSnap, biometricSnap] = await Promise.all([
-        getDoc(employeeRef),
-        getDoc(biometricRef)
-      ]);
       
-      console.log(`[Inspect][AuthPage] Document snapshot received. Employee Exists: ${employeeSnap.exists()}, Biometric Exists: ${biometricSnap.exists()}`);
+      const employeeSnap = await getDoc(employeeRef);
+      
+      console.log(`[Inspect][AuthPage] Document snapshot received. Employee Exists: ${employeeSnap.exists()}`);
 
       if (!employeeSnap.exists()) {
         toast({ variant: "destructive", title: "Authentication Failed", description: "Employee ID not found." });
@@ -58,8 +54,9 @@ function AuthPageContent() {
       
       const employeeData = { ...employeeSnap.data(), id: employeeSnap.id } as Employee;
       console.log(`[Inspect][AuthPage] Employee data:`, employeeData);
-
-      if (!biometricSnap.exists()) {
+      
+      // Check if employeeId is present, indicating biometric enrollment
+      if (!employeeData.employeeId) {
         toast({ variant: "destructive", title: "Authentication Failed", description: "No biometric data found for this employee." });
         setIsScanning(false);
         return;
@@ -72,7 +69,7 @@ function AuthPageContent() {
       }
 
       console.log('[Inspect][AuthPage] Simulating biometric scan...');
-      // In a real app, you'd use the template from biometricSnap.data() 
+      // In a real app, you'd use the template from a biometrics collection
       // and compare it with the scanner output.
       await new Promise(resolve => setTimeout(resolve, 1500));
 
@@ -129,7 +126,6 @@ function AuthPageContent() {
     } catch (error: any) {
         console.error(`[Inspect][AuthPage] Error during handleScan:`, error);
         setIsScanning(false);
-        // This could be a 'get' on either 'employees' or 'biometrics'
         const permissionError = new FirestorePermissionError({
             path: `employees/${employeeId}`, operation: 'get',
         });

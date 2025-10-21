@@ -13,11 +13,11 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useEffect, useState, useTransition } from 'react';
-import type { Employee, Biometric } from '@/lib/types';
+import type { Employee } from '@/lib/types';
 import { Fingerprint, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useFirestore } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
 
@@ -28,7 +28,7 @@ interface StaffEditDialogProps {
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
   employee: Employee | null;
-  onSave: (employee: Omit<Employee, 'id'> & { id: string }, isNew: boolean, biometricData?: Omit<Biometric,'id'|'enrolledAt'> ) => void;
+  onSave: (employee: Employee, isNew: boolean) => void;
 }
 
 export function StaffEditDialog({
@@ -41,27 +41,24 @@ export function StaffEditDialog({
   const [name, setName] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [department, setDepartment] = useState('');
+  const [hasBiometric, setHasBiometric] = useState(false);
   const [isScanning, startBiometricScan] = useTransition();
   const { toast } = useToast();
-
-  const biometricRef = useMemoFirebase(() => 
-    firestore && employeeId ? doc(firestore, 'biometrics', employeeId) : null
-  , [firestore, employeeId]);
-  
-  const { data: biometricData, isLoading: isBiometricLoading } = useDoc<Biometric>(biometricRef);
-
-  const hasBiometric = !!biometricData;
 
   useEffect(() => {
     if (isOpen) {
       setName(employee?.name || '');
       setEmployeeId(employee?.id || '');
       setDepartment(employee?.department || '');
+      // A simple check. In a real app, you might fetch this.
+      // For now, we assume if an employee exists, they might have biometrics.
+      setHasBiometric(!!employee?.employeeId);
     } else {
       // Reset form when dialog is closed
       setName('');
       setEmployeeId('');
       setDepartment('');
+      setHasBiometric(false);
     }
   }, [isOpen, employee]);
 
@@ -90,6 +87,7 @@ export function StaffEditDialog({
 
       try {
         await setDoc(newBiometricRef, newBiometricData);
+        setHasBiometric(true);
         toast({
           title: "Biometric Scan Successful",
           description: "Fingerprint data has been captured and saved.",
@@ -118,11 +116,12 @@ export function StaffEditDialog({
     }
 
     const isNew = !employee;
-    const employeeData: Omit<Employee, 'id'> & { id: string } = {
+    const employeeData: Employee = {
       id: employeeId,
       name,
       department,
       ticketBalance: isNew ? 0 : (employee?.ticketBalance ?? 0),
+      employeeId: hasBiometric ? employeeId : '',
     };
 
     onSave(employeeData, isNew);
@@ -171,7 +170,7 @@ export function StaffEditDialog({
                 </div>
               <div className="flex-grow">
                 <p className="text-sm text-muted-foreground">
-                  {isBiometricLoading ? "Checking for biometric data..." : (hasBiometric ? "Biometric data is enrolled for this user." : "Capture the employee's fingerprint for authentication.")}
+                  {hasBiometric ? "Biometric data is enrolled for this user." : "Capture the employee's fingerprint for authentication."}
                 </p>
                 <Button variant="outline" size="sm" onClick={handleBiometricScan} disabled={isScanning || !employeeId} className="mt-2">
                   {isScanning ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scanning...</> : (hasBiometric ? "Rescan Fingerprint" : "Scan Fingerprint")}
