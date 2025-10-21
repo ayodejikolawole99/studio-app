@@ -1,74 +1,66 @@
 /**
- * @fileoverview Firestore Security Rules for the Canteen System.
+ * @fileOverview Firestore Security Rules for the Canteen System.
  *
  * Core Philosophy:
- * This ruleset prioritizes data privacy and access control. Employees can only manage their own profiles.
- * Feeding records are append-only and cannot be modified or deleted after creation.
+ * This ruleset prioritizes security and data ownership, enforcing strict controls on data access.
+ * The ruleset is designed for prototyping, so data validation is intentionally relaxed except where necessary for authorization.
  *
  * Data Structure:
- * - /employees/{employeeId}: Stores employee profile information, with the employeeId used as the document ID.
- * - /feedingRecords/{recordId}: Stores records of employee meal consumption.
+ * - /employees/{employeeId}: Stores employee profiles, with the employeeId used as the document ID. Only the employee themselves can read or write their own profile.
+ * - /feedingRecords/{recordId}: Stores a log of feeding events. Intended for system-level logging, write access is completely denied, while read access is public for reporting purposes.
  *
  * Key Security Decisions:
- * - Employees can only read and update their own profile data. Listing all employees is disallowed.
- * - Feeding records are created automatically by a trusted process. They are not editable or deletable by end-users.
- * - Anonymous authentication is used. All write operations are protected by a valid user ID.
+ * - Employees can only access their own employee document. No listing of all employees is allowed.
+ * - Feeding records are publicly readable but not writable from the client.
  *
  * Denormalization for Authorization:
- * - The `FeedingRecord` entity denormalizes `employeeName` and `department` to simplify querying and reporting without requiring additional reads.
+ * - The security rules do not rely on denormalization.
+ *
+ * Structural Segregation:
+ * - The rules leverage separate collections for employee profiles (private, user-specific) and feeding records (public logging).
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to employee profile documents.
+     * @description Controls access to employee profiles. Each employee can only read and write their own profile.
      * @path /employees/{employeeId}
-     * @allow (get) User with ID 'employee123' can read their own profile.
-     * @allow (create) User with ID 'employee123' can create their own profile.
-     * @allow (update) User with ID 'employee123' can update their own profile.
-     * @deny (get) User with ID 'employee456' cannot read the profile of user 'employee123'.
-     * @deny (list) No one can list all employee profiles.
-     * @deny (create) User with ID 'employee456' cannot create the profile of user 'employee123'.
-     * @deny (update) User with ID 'employee456' cannot update the profile of user 'employee123'.
-     * @deny (delete) Only the user themselves can delete their profile.
-     * @principle Enforces document ownership: only the employee can read, update, or delete their profile.
+     * @allow (create, update, delete) auth.uid == employeeId. Allows an employee to create, update, or delete their own profile.
+     * @allow (get) auth.uid == employeeId. Allows an employee to read their own profile.
+     * @deny (create, update, delete) auth.uid != employeeId. Prevents employees from modifying other profiles.
+     * @deny list: Listing all employees is not permitted.
+     * @principle Enforces strict user-ownership for employee profiles.
      */
     match /employees/{employeeId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+      function isOwner(employeeId) {
+        return request.auth.uid == employeeId;
+      }
+      function isExistingOwner(employeeId) {
+          return isOwner(employeeId) && exists(resource);
+      }
+
       allow get: if isOwner(employeeId);
       allow list: if false;
-      allow create: if isOwner(employeeId) && request.resource.data.employeeId == employeeId;
-      allow update: if isExistingOwner(employeeId) && request.resource.data.employeeId == resource.data.employeeId;
+
+      allow create: if isSignedIn() && isOwner(employeeId);
+      allow update: if isExistingOwner(employeeId);
       allow delete: if isExistingOwner(employeeId);
     }
 
     /**
-     * @description Controls access to feeding record documents.
+     * @description Controls access to feeding records. These records are publicly readable, but only writeable by backend services.
      * @path /feedingRecords/{recordId}
-     * @allow (get) Anyone can read feeding records.
-     * @allow (list) Anyone can list feeding records.
-     * @allow (create) Anyone can create feeding records. Typically a trusted process will create these records.
-     * @deny (update) No one can update feeding records after they are created.
-     * @deny (delete) No one can delete feeding records.
-     * @principle Feeding records are append-only.
+     * @allow get, list: if true. Allows anyone to read feeding records.
+     * @deny create, update, delete: No client-side writes allowed.
+     * @principle Allows public read access for feeding records.
      */
     match /feedingRecords/{recordId} {
       allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update, delete: if false;
-    }
-
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
-    }
-
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
+      allow create, update, delete: if false;
     }
   }
 }
