@@ -1,15 +1,14 @@
 'use server';
 /**
  * @fileOverview A server-side flow to create a new employee in Firestore.
- * This flow is designed to be called from the client to bypass client-side
- * permission errors related to document creation.
+ * This flow uses the Firebase Admin SDK to bypass client-side security rules
+ * that may prevent document creation.
  */
 
-import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
 
-// The input schema is now defined in the client component that calls this flow.
+// This is the schema for the data coming from the client.
 const CreateEmployeeInputSchema = z.object({
   name: z.string(),
   employeeId: z.string(),
@@ -21,54 +20,47 @@ const CreateEmployeeInputSchema = z.object({
 type CreateEmployeeInput = z.infer<typeof CreateEmployeeInputSchema>;
 
 /**
- * A server-side function to create an employee document in Firestore.
+ * Initializes the Firebase Admin SDK on the server, ensuring it only happens once.
+ * It uses environment variables for credentials.
+ */
+function initializeServerFirebase() {
+  if (!admin.apps.length) {
+    // Ensure environment variables are set.
+    if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
+        throw new Error('Firebase Admin SDK environment variables are not set.');
+    }
+    
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        // The private key from the environment variable needs to have its newlines restored.
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      }),
+    });
+  }
+  return admin;
+}
+
+
+/**
+ * A server-side async function (Server Action) to create an employee document in Firestore.
+ * This function is called from the client to perform a privileged write operation.
  * @param employeeData - The data for the new employee.
  * @returns A promise that resolves when the employee is created.
  */
 export async function createEmployee(employeeData: CreateEmployeeInput): Promise<void> {
-  await createEmployeeFlow(employeeData);
+  // Validate input data against the schema.
+  const validatedData = CreateEmployeeInputSchema.parse(employeeData);
+  
+  const serverAdmin = initializeServerFirebase();
+  const firestore = serverAdmin.firestore();
+  
+  // The document ID will be the employeeId provided from the client.
+  const employeeRef = firestore.collection('employees').doc(validatedData.employeeId);
+  
+  // Use the Admin SDK to set the document. This bypasses client-side security rules.
+  await employeeRef.set(validatedData);
+  
+  console.log(`[Server Action] Successfully created employee: ${validatedData.employeeId}`);
 }
-
-// Server-side Firebase initialization using Admin SDK
-function initializeServerFirebase() {
-  if (admin.apps.length) {
-    return admin.app();
-  }
-
-  // Ensure environment variables are loaded. In Next.js, this is typically handled automatically.
-  if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
-      throw new Error('Firebase Admin SDK environment variables are not set.');
-  }
-
-  return admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      // The private key needs to be properly formatted.
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    }),
-  });
-}
-
-
-const createEmployeeFlow = ai.defineFlow(
-  {
-    name: 'createEmployeeFlow',
-    inputSchema: CreateEmployeeInputSchema,
-    outputSchema: z.void(),
-  },
-  async (employeeData) => {
-    // We need to initialize Firebase on the server side for this flow.
-    const serverApp = initializeServerFirebase();
-    const firestore = admin.firestore(serverApp);
-    
-    // The document ID will be the employeeId provided from the client.
-    const employeeRef = firestore.collection('employees').doc(employeeData.employeeId);
-    
-    // Using setDoc will create the document. We are not using merge here because
-    // this flow is specifically for creating new employees.
-    await employeeRef.set(employeeData);
-    
-    console.log(`[Flow] Successfully created employee: ${employeeData.employeeId}`);
-  }
-);

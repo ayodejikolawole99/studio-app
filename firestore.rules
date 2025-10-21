@@ -1,51 +1,79 @@
+/**
+ * @fileoverview Firestore Security Rules for the canteen system.
+ *
+ * Core Philosophy:
+ * This ruleset prioritizes security by default, restricting access to employee records and allowing public read access to feeding records.
+ * Write access to employee records is denied to all users except those with the 'admin' role, enforced through custom claims.
+ * Feeding records are publicly readable but only admin users may create them.
+ *
+ * Data Structure:
+ * - /employees/{employeeId}: Stores employee profile data, with the employeeId used as the document ID.
+ * - /feedingRecords/{recordId}: Stores records of employee meal consumption.
+ *
+ * Key Security Decisions:
+ * - Employee listing is disabled to protect employee privacy.
+ * - The 'admin' custom claim is the sole means of gaining elevated privileges.
+ *
+ * Denormalization for Authorization:
+ * - An 'admin' custom claim is required on the `request.auth.token` to perform `create`, `update`, and `delete` operations on the `employees` collection.
+ *
+ * Structural Segregation:
+ * - This ruleset does not implement structural segregation, as there is no separation of private and public employee data.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to employee profile documents.
+     * @description Manages employee profiles. Only admins can create, update, or delete employee records. Regular employees can only read their own records. Listing employees is denied.
      * @path /employees/{employeeId}
-     * @allow (create) User with UID 'EMP001' can create document '/employees/EMP001' if request.auth.uid == 'EMP001'.
-     * @deny (create) User with UID 'USR002' cannot create document '/employees/EMP001' because the UIDs do not match.
-     * @allow (get) User with UID 'EMP001' can read document '/employees/EMP001'.
-     * @deny (get) User with UID 'USR002' cannot read document '/employees/EMP001'.
-     * @allow (update) User with UID 'EMP001' can update document '/employees/EMP001'.
-     * @deny (update) User with UID 'USR002' cannot update document '/employees/EMP001'.
-     * @allow (delete) User with UID 'EMP001' can delete document '/employees/EMP001'.
-     * @deny (delete) User with UID 'USR002' cannot delete document '/employees/EMP001'.
-     * @principle Enforces document ownership for all operations on employee profiles.
+     * @allow (create) - An admin user with the 'admin' custom claim can create a new employee record.
+     * @allow (read) - If the user's UID is equal to the employeeId they are trying to read.
+     * @allow (update) - An admin user with the 'admin' custom claim can update an existing employee record.
+     * @allow (delete) - An admin user with the 'admin' custom claim can delete an existing employee record.
+     * @deny (create) - A non-admin user attempts to create an employee record.
+     * @deny (read) - A user attempts to read an employee record that does not belong to them.
+     * @deny (update) - A non-admin user attempts to update an employee record.
+     * @deny (delete) - A non-admin user attempts to delete an employee record.
+     * @principle Enforces role-based access control and document ownership.
      */
     match /employees/{employeeId} {
-      // Verified identity
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      // Is owner
-      function isOwner(employeeId) {
-        return request.auth.uid == employeeId;
-      }
-
-      allow get: if isSignedIn() && isOwner(employeeId);
-      allow list: if false; // Listing employees is not permitted.
-
-      allow create: if isSignedIn() && isOwner(employeeId);
-      allow update: if isSignedIn() && isOwner(employeeId);
-      allow delete: if isSignedIn() && isOwner(employeeId);
+      allow get: if isSignedIn() && request.auth.uid == employeeId;
+      allow list: if false;
+      allow create: if isAdmin();
+      allow update: if isAdmin() && isExistingDocument();
+      allow delete: if isAdmin() && isExistingDocument();
     }
 
     /**
-     * @description Controls access to feeding record documents.
+     * @description Manages feeding records. Anyone can read the feeding records, but only admins can create them. Updates and deletes are not allowed.
      * @path /feedingRecords/{recordId}
-     * @allow (get) Any user can read a feeding record document.
-     * @deny (create) No user can create a feeding record document.
-     * @deny (update) No user can update a feeding record document.
-     * @deny (delete) No user can delete a feeding record document.
-     * @principle Allows public read access for the feedingRecords but restricts all write access.
+     * @allow (get) - Any user, even unauthenticated, can read feeding records.
+     * @allow (list) - Any user, even unauthenticated, can list feeding records.
+     * @allow (create) - An admin user with the 'admin' custom claim can create a new feeding record.
+     * @deny (create) - A non-admin user attempts to create a feeding record.
+     * @deny (update) - Any user attempts to update a feeding record.
+     * @deny (delete) - Any user attempts to delete a feeding record.
+     * @principle Allows public read access with restricted write access.
      */
     match /feedingRecords/{recordId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // Writes are only allowed from the server-side via admin SDK.
+      allow create: if isAdmin();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    function isExistingDocument() {
+      return resource != null;
     }
   }
 }
