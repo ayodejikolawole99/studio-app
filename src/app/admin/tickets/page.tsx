@@ -22,6 +22,7 @@ export default function TicketsPage() {
 
   useEffect(() => {
     async function fetchEmployees() {
+      if (!firestore) return; // Wait for firestore to be initialized
       setAreEmployeesLoading(true);
       setError(null);
       try {
@@ -41,9 +42,7 @@ export default function TicketsPage() {
       }
     }
 
-    if (firestore) { // Only fetch if firestore is available, as a proxy for firebase init
-        fetchEmployees();
-    }
+    fetchEmployees();
   }, [firestore]);
 
 
@@ -149,7 +148,7 @@ export default function TicketsPage() {
           Ticket Management
         </h1>
         <p className="mt-2 text-lg text-muted-foreground">
-          Allocate individual and bulk tickets to employees. Only users with an 'admin' role can perform these actions.
+          Allocate individual and bulk tickets to employees. These actions require 'admin' permissions and are handled by the server.
         </p>
       </header>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

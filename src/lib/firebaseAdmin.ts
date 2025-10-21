@@ -2,11 +2,11 @@
 import * as admin from "firebase-admin";
 
 if (!admin.apps.length) {
+  // Check for environment variables and throw an error if they are missing.
+  // This is crucial for server-side debugging.
   if (!process.env.FIREBASE_PROJECT_ID ||
       !process.env.FIREBASE_CLIENT_EMAIL ||
       !process.env.FIREBASE_PRIVATE_KEY) {
-    // This will cause the server to crash on startup if variables are missing,
-    // which is good for debugging.
     throw new Error("Missing Firebase Admin environment variables. Check your .env or hosting configuration.");
   }
 
@@ -14,11 +14,12 @@ if (!admin.apps.length) {
     credential: admin.credential.cert({
       projectId: process.env.FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      // The private key must have newlines restored.
+      // The private key must have newlines restored from the environment variable.
       privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
     }),
   });
 }
 
+// Export the initialized db and auth instances for use in server-side API routes.
 export const db = admin.firestore();
 export const auth = admin.auth();

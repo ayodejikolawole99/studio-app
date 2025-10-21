@@ -110,7 +110,7 @@ export function StaffEditDialog({
                 const savedEmployee: Employee = {
                   ...(employee || {}), // Start with original data to preserve fields like ticketBalance
                   id: result.id,
-                  employeeId: result.id, // For new employees, API returns the ID
+                  employeeId: isNewEmployee ? result.id : employeeId, // API returns the ID
                   name,
                   department,
                   biometricTemplate,
@@ -129,19 +129,11 @@ export function StaffEditDialog({
         } catch (error) {
             console.error("[StaffEditDialog] API request failed: ", error);
             // This catches network errors, or if the response isn't valid JSON
-            if (error instanceof SyntaxError) {
-                 toast({ 
-                    variant: 'destructive', 
-                    title: 'Server Error', 
-                    description: 'Received an invalid response from the server.'
-                });
-            } else {
-                toast({ 
-                    variant: 'destructive', 
-                    title: 'Network Error', 
-                    description: 'Could not connect to the server. Please try again.'
-                });
-            }
+            toast({ 
+                variant: 'destructive', 
+                title: 'Network Error', 
+                description: 'Could not connect to the server. The API route might be missing or crashing.'
+            });
         }
     });
   };
