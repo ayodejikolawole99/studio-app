@@ -11,10 +11,10 @@ if (!admin.apps.length) {
   // This check is crucial for server-side debugging.
   // If these variables are missing, the app will crash with a clear error.
   if (!projectId || !clientEmail || !privateKey) {
-    console.error("CRITICAL: Missing Firebase Admin environment variables. Please set them in your deployment environment.");
+    console.error("CRITICAL: Missing Firebase Admin environment variables. Please set them in your deployment environment using Firebase secrets.");
     // In a serverless environment, throwing an error is often the best way
     // to signal a fatal configuration problem.
-    throw new Error("Missing Firebase Admin credentials in environment.");
+    throw new Error("Missing Firebase Admin credentials in environment. Run `firebase functions:secrets:set` for FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY.");
   }
 
   try {
