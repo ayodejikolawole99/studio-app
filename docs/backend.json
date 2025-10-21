@@ -18,8 +18,12 @@
           "description": "The department the employee belongs to."
         },
         "ticketBalance": {
-            "type": "number",
-            "description": "The number of meal tickets the employee currently has."
+          "type": "number",
+          "description": "The number of meal tickets the employee currently has."
+        },
+        "biometricTemplate": {
+          "type": "string",
+          "description": "The biometric template data, usually a Base64 encoded string. Its presence indicates enrollment."
         }
       },
       "required": [
@@ -38,12 +42,12 @@
           "description": "The ID of the employee who consumed the meal."
         },
         "employeeName": {
-            "type": "string",
-            "description": "The name of the employee (denormalized for easy display)."
+          "type": "string",
+          "description": "The name of the employee (denormalized for easy display)."
         },
         "department": {
-            "type": "string",
-            "description": "The department of the employee (denormalized)."
+          "type": "string",
+          "description": "The department of the employee (denormalized)."
         },
         "timestamp": {
           "type": "string",
@@ -57,27 +61,6 @@
         "department",
         "timestamp"
       ]
-    },
-    "Biometric": {
-        "title": "Biometric",
-        "type": "object",
-        "description": "Stores the biometric data for an employee.",
-        "properties": {
-            "employeeId": {
-                "type": "string",
-                "description": "The ID of the employee this biometric data belongs to. This is the document ID."
-            },
-            "template": {
-                "type": "string",
-                "description": "The biometric template data, usually a Base64 encoded string."
-            },
-            "enrolledAt": {
-                "type": "string",
-                "format": "date-time",
-                "description": "Timestamp of when the biometric data was enrolled."
-            }
-        },
-        "required": ["employeeId", "template", "enrolledAt"]
     }
   },
   "auth": {
@@ -87,33 +70,24 @@
   },
   "firestore": {
     "structure": [
-        {
-            "path": "/employees/{employeeId}",
-            "definition": {
-                "schema": {
-                    "$ref": "#/entities/Employee"
-                },
-                "description": "Stores employee profiles. The document ID is the official employee number."
-            }
-        },
-        {
-            "path": "/feedingRecords/{recordId}",
-            "definition": {
-                "schema": {
-                    "$ref": "#/entities/FeedingRecord"
-                },
-                "description": "A log of all feeding events. Data is denormalized for efficient querying and reporting."
-            }
-        },
-        {
-            "path": "/biometrics/{employeeId}",
-            "definition": {
-                "schema": {
-                    "$ref": "#/entities/Biometric"
-                },
-                "description": "Stores the biometric template for each employee. The document ID is the employee's ID."
-            }
+      {
+        "path": "/employees/{employeeId}",
+        "definition": {
+          "schema": {
+            "$ref": "#/entities/Employee"
+          },
+          "description": "Stores employee profiles. The document ID is the official employee number."
         }
+      },
+      {
+        "path": "/feedingRecords/{recordId}",
+        "definition": {
+          "schema": {
+            "$ref": "#/entities/FeedingRecord"
+          },
+          "description": "A log of all feeding events. Data is denormalized for efficient querying and reporting."
+        }
+      }
     ]
   }
 }

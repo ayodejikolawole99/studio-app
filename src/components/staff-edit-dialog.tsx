@@ -18,9 +18,8 @@ import { Fingerprint, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFirestore } from '@/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
-
 
 const departments = ["Production", "Logistics", "Quality Assurance", "Human Resources", "Maintenance", "IT", "Finance"];
 
@@ -28,7 +27,7 @@ interface StaffEditDialogProps {
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
   employee: Employee | null;
-  onSave: (employee: Employee, isNew: boolean) => void;
+  onSave: (employeeData: Partial<Employee>, isNew: boolean) => void;
 }
 
 export function StaffEditDialog({
@@ -37,11 +36,10 @@ export function StaffEditDialog({
   employee,
   onSave,
 }: StaffEditDialogProps) {
-  const firestore = useFirestore();
   const [name, setName] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [department, setDepartment] = useState('');
-  const [hasBiometric, setHasBiometric] = useState(false);
+  const [biometricTemplate, setBiometricTemplate] = useState<string | undefined>(undefined);
   const [isScanning, startBiometricScan] = useTransition();
   const { toast } = useToast();
 
@@ -50,62 +48,29 @@ export function StaffEditDialog({
       setName(employee?.name || '');
       setEmployeeId(employee?.id || '');
       setDepartment(employee?.department || '');
-      // A simple check. In a real app, you might fetch this.
-      // For now, we assume if an employee exists, they might have biometrics.
-      setHasBiometric(!!employee?.employeeId);
+      setBiometricTemplate(employee?.biometricTemplate);
     } else {
       // Reset form when dialog is closed
       setName('');
       setEmployeeId('');
       setDepartment('');
-      setHasBiometric(false);
+      setBiometricTemplate(undefined);
     }
   }, [isOpen, employee]);
 
   const handleBiometricScan = () => {
-    if (!employeeId) {
-       toast({
-        variant: "destructive",
-        title: "Employee ID Required",
-        description: "Please enter an Employee Number before scanning.",
-      });
-      return;
-    }
     startBiometricScan(async () => {
       // In a real app, this would call the SecuGen WebAPI.
-      // For now, we simulate the scan and create a biometric record.
-      const simulatedTemplate = `B64_TEMPLATE_${employeeId}_${Date.now()}`;
+      // For now, we simulate the scan and get a template.
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const simulatedTemplate = `B64_TEMPLATE_${employeeId || 'NEW'}_${Date.now()}`;
       
-      if (!firestore) return;
+      setBiometricTemplate(simulatedTemplate);
       
-      const newBiometricRef = doc(firestore, 'biometrics', employeeId);
-      const newBiometricData = {
-        employeeId: employeeId,
-        template: simulatedTemplate,
-        enrolledAt: serverTimestamp(),
-      };
-
-      try {
-        await setDoc(newBiometricRef, newBiometricData);
-        setHasBiometric(true);
-        toast({
-          title: "Biometric Scan Successful",
-          description: "Fingerprint data has been captured and saved.",
-        });
-      } catch (error) {
-        console.error("Error saving biometric data:", error);
-        const permissionError = new FirestorePermissionError({
-          path: newBiometricRef.path,
-          operation: 'create',
-          requestResourceData: newBiometricData
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        toast({
-          variant: "destructive",
-          title: "Scan Failed",
-          description: "Could not save biometric data. Check permissions.",
-        });
-      }
+      toast({
+        title: "Biometric Scan Successful",
+        description: "Fingerprint data has been captured. Save the employee to store it.",
+      });
     });
   };
 
@@ -116,17 +81,21 @@ export function StaffEditDialog({
     }
 
     const isNew = !employee;
-    const employeeData: Employee = {
+    
+    // We only create partial data here. The onSave function will handle the merge.
+    const employeeData: Partial<Employee> & { id: string } = {
       id: employeeId,
       name,
       department,
-      ticketBalance: isNew ? 0 : (employee?.ticketBalance ?? 0),
-      employeeId: hasBiometric ? employeeId : '',
+      // Only include the template if it has been scanned/exists
+      ...(biometricTemplate && { biometricTemplate }),
     };
 
     onSave(employeeData, isNew);
     setIsOpen(false);
   };
+
+  const hasBiometric = !!biometricTemplate;
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -172,7 +141,7 @@ export function StaffEditDialog({
                 <p className="text-sm text-muted-foreground">
                   {hasBiometric ? "Biometric data is enrolled for this user." : "Capture the employee's fingerprint for authentication."}
                 </p>
-                <Button variant="outline" size="sm" onClick={handleBiometricScan} disabled={isScanning || !employeeId} className="mt-2">
+                <Button variant="outline" size="sm" onClick={handleBiometricScan} disabled={isScanning} className="mt-2">
                   {isScanning ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scanning...</> : (hasBiometric ? "Rescan Fingerprint" : "Scan Fingerprint")}
                 </Button>
               </div>

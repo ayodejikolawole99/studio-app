@@ -99,12 +99,10 @@ export default function StaffList() {
         return;
     }
     const employeeRef = doc(firestore, 'employees', employeeId);
-    // Also delete the biometric data
-    const biometricRef = doc(firestore, 'biometrics', employeeId);
-
-    Promise.all([deleteDoc(employeeRef), deleteDoc(biometricRef).catch(() => {})]) // Ignore error if biometric doesn't exist
+    
+    deleteDoc(employeeRef)
       .then(() => {
-        console.log(`[Inspect][StaffList] Employee ${employeeId} and their biometric data deleted. Refreshing search results.`);
+        console.log(`[Inspect][StaffList] Employee ${employeeId} deleted. Refreshing search results.`);
         handleSearch();
         toast({ title: 'Success', description: 'Employee has been deleted.'});
       })
@@ -119,7 +117,7 @@ export default function StaffList() {
       });
   };
 
-  const handleSave = (employeeData: Employee, isNew: boolean) => {
+  const handleSave = (employeeData: Partial<Employee> & { id: string }, isNew: boolean) => {
     console.log(`[Inspect][StaffList] handleSave called. isNew: ${isNew}, data:`, employeeData);
     if (!firestore) {
         console.error('[Inspect][StaffList] Firestore not available for save.');
@@ -127,15 +125,17 @@ export default function StaffList() {
     }
     const employeeRef = doc(firestore, 'employees', employeeData.id);
     
-    // The employeeData object is now the complete source of truth.
     const saveData = {
         name: employeeData.name,
         department: employeeData.department,
-        ticketBalance: employeeData.ticketBalance,
-        employeeId: employeeData.employeeId,
+        employeeId: employeeData.id,
+        // Ensure biometricTemplate is included if it exists
+        ...(employeeData.biometricTemplate && { biometricTemplate: employeeData.biometricTemplate }),
+        // Set initial balance for new employees
+        ...(isNew && { ticketBalance: 0 }),
     };
     
-    setDoc(employeeRef, saveData, { merge: !isNew })
+    setDoc(employeeRef, saveData, { merge: true }) // Use merge:true to avoid overwriting existing fields
       .then(() => {
         console.log(`[Inspect][StaffList] Employee ${employeeData.id} saved. Refreshing search results.`);
         handleSearch(); // Refresh search results

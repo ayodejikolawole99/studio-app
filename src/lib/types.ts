@@ -6,6 +6,7 @@ export type Employee = {
   department: string;
   ticketBalance: number;
   employeeId: string;
+  biometricTemplate?: string; // Optional: Its presence indicates enrollment.
 };
 
 export type Biometric = {

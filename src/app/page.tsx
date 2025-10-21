@@ -55,8 +55,8 @@ function AuthPageContent() {
       const employeeData = { ...employeeSnap.data(), id: employeeSnap.id } as Employee;
       console.log(`[Inspect][AuthPage] Employee data:`, employeeData);
       
-      // Check if employeeId is present, indicating biometric enrollment
-      if (!employeeData.employeeId) {
+      // Check if biometricTemplate is present, indicating biometric enrollment
+      if (!employeeData.biometricTemplate) {
         toast({ variant: "destructive", title: "Authentication Failed", description: "No biometric data found for this employee." });
         setIsScanning(false);
         return;
@@ -69,7 +69,7 @@ function AuthPageContent() {
       }
 
       console.log('[Inspect][AuthPage] Simulating biometric scan...');
-      // In a real app, you'd use the template from a biometrics collection
+      // In a real app, you'd use the template from the employee document
       // and compare it with the scanner output.
       await new Promise(resolve => setTimeout(resolve, 1500));
 
