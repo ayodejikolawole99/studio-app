@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -34,23 +34,42 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
 
 export default function StaffList() {
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [areEmployeesLoading, setAreEmployeesLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [isEditOpen, setEditOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isDeleting, startDeleteTransition] = useTransition();
   const { toast } = useToast();
-  const firestore = useFirestore();
-
-  const employeesRef = useMemoFirebase(() =>
-    firestore ? collection(firestore, 'employees') : null
-  , [firestore]);
   
-  // The useCollection hook now works because the firestore.rules allows admins to 'list'
-  const { data: employees, isLoading: areEmployeesLoading, error, setData: setEmployees } = useCollection<Employee>(employeesRef);
+  useEffect(() => {
+    async function fetchEmployees() {
+      setAreEmployeesLoading(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/employees/list");
+        const data = await res.json();
+
+        if (res.ok) {
+          setEmployees(data.employees);
+        } else {
+          throw new Error(data.error || "Failed to fetch employees. You may not have permission.");
+        }
+      } catch (err: any) {
+        setError(err.message);
+        console.error("Error fetching employees:", err);
+      } finally {
+        setAreEmployeesLoading(false);
+      }
+    }
+
+    fetchEmployees();
+  }, []);
+
 
   const filteredEmployees = employees?.filter(employee =>
     employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -59,7 +78,7 @@ export default function StaffList() {
 
   const handleAddNew = () => {
     const newEmployee: Employee = {
-      id: '', // ID will be set in the dialog from the employeeId field
+      id: '',
       name: '',
       department: '',
       ticketBalance: 0,
@@ -84,10 +103,7 @@ export default function StaffList() {
 
         if (response.ok) {
           toast({ title: 'Success', description: 'Employee has been deleted.' });
-          // Optimistically update UI
-          if (employees) {
-            setEmployees(employees.filter(emp => emp.id !== employeeId));
-          }
+          setEmployees(currentEmployees => currentEmployees.filter(emp => emp.id !== employeeId));
         } else {
           toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not delete employee.' });
         }
@@ -99,18 +115,15 @@ export default function StaffList() {
   };
 
   const onSuccessfulSave = (savedEmployee: Employee) => {
-      // Data will refresh automatically due to useCollection hook, but we can do it faster
-      if (employees) {
-        const existingIndex = employees.findIndex(e => e.id === savedEmployee.id);
-        if (existingIndex > -1) {
-          // Update
-          const newEmployees = [...employees];
-          newEmployees[existingIndex] = savedEmployee;
-          setEmployees(newEmployees);
-        } else {
-          // Create
-          setEmployees([savedEmployee, ...employees]);
-        }
+      const existingIndex = employees.findIndex(e => e.id === savedEmployee.id);
+      if (existingIndex > -1) {
+        // Update
+        const newEmployees = [...employees];
+        newEmployees[existingIndex] = savedEmployee;
+        setEmployees(newEmployees);
+      } else {
+        // Create - add to list and re-sort
+        setEmployees([...employees, savedEmployee].sort((a, b) => a.name.localeCompare(b.name)));
       }
       setEditOpen(false);
   }
@@ -156,7 +169,7 @@ export default function StaffList() {
                 ) : error ? (
                    <TableRow>
                       <TableCell colSpan={6} className="h-24 text-center text-destructive">
-                        Error: Could not load staff data. You may not have permission to view this list.
+                        {error}
                       </TableCell>
                     </TableRow>
                 ) : filteredEmployees.length > 0 ? (

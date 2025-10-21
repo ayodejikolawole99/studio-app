@@ -1,30 +1,50 @@
 
 'use client';
 
-import { useState, useMemo, useTransition } from 'react';
+import { useState, useMemo, useTransition, useEffect } from 'react';
 import type { Employee } from '@/lib/types';
 import IndividualTicketControl from '@/components/individual-ticket-control';
 import BulkTicketControl from '@/components/bulk-ticket-control';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore } from '@/firebase';
 import { collection, doc, writeBatch, getDocs, query as firestoreQuery, where, increment } from 'firebase/firestore';
 
-
-// NOTE: This client-side implementation for ticket updates WILL FAIL with the new, stricter
-// security rules unless the currently authenticated user is an ADMIN. The rules prevent
-// direct client-side writes to the `employees` collection by non-admins.
-// For this to work for all admins, they must have the `admin: true` custom claim set.
 
 export default function TicketsPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const [isUpdating, startUpdateTransition] = useTransition();
 
-  const employeesRef = useMemoFirebase(() => 
-    firestore ? collection(firestore, 'employees') : null
-  , [firestore]);
-  const { data: employees, isLoading: areEmployeesLoading, error } = useCollection<Employee>(employeesRef);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [areEmployeesLoading, setAreEmployeesLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchEmployees() {
+      setAreEmployeesLoading(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/employees/list");
+        const data = await res.json();
+
+        if (res.ok) {
+          setEmployees(data.employees);
+        } else {
+          throw new Error(data.error || "Failed to fetch employees. You may not have permission.");
+        }
+      } catch (err: any) {
+        setError(err.message);
+        console.error("Error fetching employees:", err);
+      } finally {
+        setAreEmployeesLoading(false);
+      }
+    }
+
+    if (firestore) { // Only fetch if firestore is available, as a proxy for firebase init
+        fetchEmployees();
+    }
+  }, [firestore]);
 
 
   const departments = useMemo(() => {
@@ -49,6 +69,9 @@ export default function TicketsPage() {
           title: 'Update Applied',
           description: `Ticket balance for ${employee.name} updated.`
         });
+        
+        // Optimistically update local state
+        setEmployees(emps => emps.map(e => e.id === employeeId ? {...e, ticketBalance: (e.ticketBalance || 0) + amount} : e));
       } catch (e: any) {
         console.error("Error updating individual tickets:", e);
         toast({
@@ -76,6 +99,7 @@ export default function TicketsPage() {
         }
         
         const batch = writeBatch(firestore);
+        const updatedIds = querySnapshot.docs.map(d => d.id);
         querySnapshot.forEach((docSnap) => {
             batch.update(docSnap.ref, { ticketBalance: increment(amount) });
         });
@@ -86,6 +110,9 @@ export default function TicketsPage() {
             title: 'Bulk Update Applied',
             description: `Ticket balances updated for ${department === 'all' ? 'all employees' : `the ${department} department`}.`
         });
+        // Optimistically update local state
+        setEmployees(emps => emps.map(e => updatedIds.includes(e.id) ? {...e, ticketBalance: (e.ticketBalance || 0) + amount} : e));
+
       } catch (e: any) {
         console.error("Error performing bulk update:", e);
         toast({ 
@@ -110,7 +137,7 @@ export default function TicketsPage() {
      return (
         <div className="flex flex-col h-64 w-full items-center justify-center rounded-lg border border-destructive/50 bg-destructive/10 p-8 text-center text-destructive">
             <p className='font-bold'>Error Loading Employee Data</p>
-            <p className='text-sm mt-2'>You may not have the required permissions to view the list of employees. Please contact your administrator to ensure you have the 'admin' role assigned to your account.</p>
+            <p className='text-sm mt-2'>{error}</p>
         </div>
     );
   }
