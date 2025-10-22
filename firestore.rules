@@ -2,76 +2,44 @@
  * @fileoverview Firestore Security Rules for the canteen system.
  *
  * Core Philosophy:
- * This ruleset enforces role-based access control, where only users with the 'admin' claim
- * can manage employee data (create, update, delete).  Reading employee data is permitted
- * either by an admin or by the employee themselves (get only, not list). All feeding records
- * are publicly readable, but write access is completely denied to client applications.
+ * This ruleset provides open read access (get, list) to employee data and feeding records
+ * but prevents any unauthorized modification of data.
  *
  * Data Structure:
- * - /employees/{employeeId}: Stores individual employee profiles.  The document ID is the
- *   employeeId.
+ * - /employees/{employeeId}: Stores employee profiles, with the employeeId as the document ID.
  * - /feedingRecords/{recordId}: Stores records of meal consumption events.
  *
  * Key Security Decisions:
- * - Only users with the 'admin' claim can list employees.
- * - Employees can only read their own employee document.
- * - All writes to employee data require the 'admin' claim.
- * - Feeding records are publicly readable but not writable from the client.
- *
- * Denormalization for Authorization:
- *  - The rules rely on the 'admin' claim in the user's JWT to grant elevated permissions.
- *
- * Structural Segregation:
- *  - Publicly readable data (feedingRecords) is stored in a separate top-level collection
- *    from private user data (employees).
+ * - Open read access for both collections.
+ * - No user-specific data trees (no /users/{userId} structure).
+ * - All write operations are disallowed to prevent unauthorized modification in the prototype phase.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages access to employee profiles. Only admins can create, update, or delete employees.
-     *              Employees can read their own profile.
+     * @description Allows anyone to read employee profiles (get, list) but prevents any writes.
      * @path /employees/{employeeId}
-     * @allow (get) - If the user's UID matches the employeeId or the user has the 'admin' claim.
-     * @allow (list) - If the user has the 'admin' claim.
-     * @allow (create) - If the user has the 'admin' claim.
-     * @allow (update) - If the user has the 'admin' claim.
-     * @allow (delete) - If the user has the 'admin' claim.
-     * @deny (create) - If the user does not have the 'admin' claim.
-     * @deny (update) - If the user does not have the 'admin' claim.
-     * @deny (delete) - If the user does not have the 'admin' claim.
-     * @deny (get) - If the user's UID does not match the employeeId and the user does not have the 'admin' claim.
-     * @deny (list) - If the user does not have the 'admin' claim.
-     * @principle Enforces role-based access control for employee data.
+     * @allow (get, list): Any user can retrieve or list employee profiles.
+     * @deny (create, update, delete): No one can create, update, or delete employee profiles.
+     * @principle Open read access, deny all writes.
      */
     match /employees/{employeeId} {
-      allow get: if isSignedIn() && (request.auth.uid == employeeId || isAdmin());
-      allow list: if isSignedIn() && isAdmin();
-      allow create: if isSignedIn() && isAdmin();
-      allow update: if isSignedIn() && isAdmin() && resource != null;
-      allow delete: if isSignedIn() && isAdmin() && resource != null;
-    }
-
-    /**
-     * @description Allows public read access to feeding records but denies all writes.
-     * @path /feedingRecords/{recordId}
-     * @allow (get, list) - Always.
-     * @deny (create, update, delete) - Always.
-     * @principle Provides public read access to feeding records while preventing unauthorized modifications.
-     */
-    match /feedingRecords/{recordId} {
       allow get, list: if true;
       allow create, update, delete: if false;
     }
 
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isAdmin() {
-      return request.auth.token.admin == true;
+    /**
+     * @description Allows anyone to read feeding records (get, list) but prevents any writes.
+     * @path /feedingRecords/{recordId}
+     * @allow (get, list): Any user can retrieve or list feeding records.
+     * @deny (create, update, delete): No one can create, update, or delete feeding records.
+     * @principle Open read access, deny all writes.
+     */
+    match /feedingRecords/{recordId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
   }
 }
