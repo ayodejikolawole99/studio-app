@@ -31,13 +31,13 @@ function AuthPageContent() {
     setIsAuthenticated(false);
     setAuthenticatedEmployee(null);
 
+    const employeesRef = collection(firestore, 'employees');
+    const q = query(employeesRef, where("biometricTemplate", "!=", null), limit(1));
+    
     try {
       console.log('[Inspect][AuthPage] Simulating biometric scan and fetching enrolled employee...');
       // In a real app, the scanner would return a unique identifier for the fingerprint.
       // Here, we simulate this by querying for one enrolled employee to authenticate.
-      const employeesRef = collection(firestore, 'employees');
-      const q = query(employeesRef, where("biometricTemplate", "!=", null), limit(1));
-      
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
@@ -67,7 +67,7 @@ function AuthPageContent() {
       const newBalance = (employeeData.ticketBalance || 0) - 1;
       
       console.log(`[Inspect][AuthPage] Initiating non-blocking update for ticket balance to ${newBalance}`);
-      updateDoc(employeeRef, updateData).catch(async (serverError) => {
+      updateDoc(employeeRef, updateData).catch((serverError) => {
           console.error(`[Inspect][AuthPage] Firestore error during ticket balance update:`, serverError);
           const permissionError = new FirestorePermissionError({
               path: employeeRef.path, operation: 'update', requestResourceData: updateData,
@@ -83,7 +83,7 @@ function AuthPageContent() {
         department: employeeData.department,
         timestamp: serverTimestamp()
       };
-      addDoc(feedingRecordRef, newFeedingRecord).catch(async (serverError) => {
+      addDoc(feedingRecordRef, newFeedingRecord).catch((serverError) => {
           console.error(`[Inspect][AuthPage] Firestore error during feeding record creation:`, serverError);
           const permissionError = new FirestorePermissionError({
               path: feedingRecordRef.path, operation: 'create', requestResourceData: newFeedingRecord,
@@ -117,11 +117,16 @@ function AuthPageContent() {
     } catch (error: any) {
         console.error(`[Inspect][AuthPage] Error during handleScan:`, error);
         setIsScanning(false);
-        // Since we don't have a specific employee ID at the start, we can't create a detailed error path
+
+        // This block catches the getDocs permission error.
+        // It emits the specialized error to be caught by the global error boundary.
         const permissionError = new FirestorePermissionError({
-            path: `employees`, operation: 'list',
+            path: (q as any)?._query?.path?.toString() || 'employees',
+            operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
+        
+        // A user-facing toast is still acceptable, but the detailed error is for the dev overlay.
         toast({
             variant: "destructive",
             title: "Operation Failed",

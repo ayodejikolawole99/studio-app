@@ -3,10 +3,15 @@ import * as admin from "firebase-admin";
 
 // This check is crucial to prevent re-initialization on hot reloads in development.
 if (!admin.apps.length) {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  // The private key must have newlines restored from the environment variable.
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const projectId = process.env.ADMIN_PROJECT_ID;
+  const clientEmail = process.env.ADMIN_CLIENT_EMAIL;
+  const privateKey = process.env.ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n");
+
+  console.log("ENV CHECK", {
+    projectId: process.env.ADMIN_PROJECT_ID,
+    clientEmail: process.env.ADMIN_CLIENT_EMAIL,
+    hasPrivateKey: !!process.env.ADMIN_PRIVATE_KEY,
+  });
 
   // This check is crucial for server-side debugging.
   // If these variables are missing, the app will crash with a clear error.
