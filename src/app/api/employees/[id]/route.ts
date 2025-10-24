@@ -1,91 +1,105 @@
-
 import { NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
 
+// Schema for updating an employee
 const UpdateEmployeeSchema = z.object({
-  name: z.string().min(1, "Name is required").optional(),
-  department: z.string().min(1, "Department is required").optional(),
+  name: z.string().optional(),
+  department: z.string().optional(),
   biometricTemplate: z.string().optional(),
+  ticketBalance: z.number().optional(),
 });
 
+// GET /api/employees/:id → fetch one employee
+export async function GET(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const ref = db.collection("employees").doc(params.id);
+    const doc = await ref.get();
 
+    if (!doc.exists) {
+      return NextResponse.json(
+        { error: `Employee ${params.id} not found` },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ id: doc.id, ...doc.data() }, { status: 200 });
+  } catch (err: any) {
+    console.error("Error in GET /api/employees/:id:", err);
+    return NextResponse.json(
+      { error: err.message || "Failed to fetch employee" },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT /api/employees/:id → update employee
 export async function PUT(
   req: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const employeeId = params.id;
-    if (!employeeId) {
-      return NextResponse.json({ error: "Employee ID is required." }, { status: 400 });
-    }
-    
     const body = await req.json();
-    console.log(`API Route /api/employees/${employeeId} received PUT body:`, body);
-
     const validatedData = UpdateEmployeeSchema.parse(body);
 
-    if (Object.keys(validatedData).length === 0) {
-        return NextResponse.json({ error: "No fields to update provided." }, { status: 400 });
-    }
+    const ref = db.collection("employees").doc(params.id);
+    const doc = await ref.get();
 
-    const ref = db.collection("employees").doc(employeeId);
-    
-    const existing = await ref.get();
-    if (!existing.exists) {
+    if (!doc.exists) {
       return NextResponse.json(
-        { error: `Employee with ID ${employeeId} not found.` },
+        { error: `Employee ${params.id} not found` },
         { status: 404 }
       );
     }
-    
-    const updatePayload: { [key: string]: any } = {
+
+    await ref.update({
       ...validatedData,
       updatedAt: FieldValue.serverTimestamp(),
-    };
+    });
 
-    await ref.update(updatePayload);
-    console.log(`Successfully updated employee ${employeeId}`);
-    
-    const updatedDoc = await ref.get();
-
-    return NextResponse.json({ success: true, employee: { id: updatedDoc.id, ...updatedDoc.data() } });
-  } catch (err: any)
-  {
-    console.error(`Error in /api/employees/${params.id} PUT:`, err);
-
-    if (err instanceof z.ZodError) {
-        return NextResponse.json({ error: "Invalid input data", details: err.errors }, { status: 400 });
-    }
-    
-    return NextResponse.json({ error: err.message || "An unknown server error occurred" }, { status: 500 });
+    return NextResponse.json(
+      { success: true, id: params.id, ...validatedData },
+      { status: 200 }
+    );
+  } catch (err: any) {
+    console.error("Error in PUT /api/employees/:id:", err);
+    return NextResponse.json(
+      { error: err.message || "Failed to update employee" },
+      { status: 500 }
+    );
   }
 }
 
+// DELETE /api/employees/:id → remove employee
 export async function DELETE(
   req: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const employeeId = params.id;
-    if (!employeeId) {
-      return NextResponse.json({ error: "Employee ID is required." }, { status: 400 });
-    }
+    const ref = db.collection("employees").doc(params.id);
+    const doc = await ref.get();
 
-    const ref = db.collection("employees").doc(employeeId);
-    const existing = await ref.get();
-    if (!existing.exists) {
-      // If it doesn't exist, we can consider the delete operation successful from the client's perspective.
-      return NextResponse.json({ success: true, id: employeeId, message: "Employee already deleted." });
+    if (!doc.exists) {
+      return NextResponse.json(
+        { error: `Employee ${params.id} not found` },
+        { status: 404 }
+      );
     }
 
     await ref.delete();
-    console.log(`Successfully deleted employee ${employeeId}`);
-
-    return NextResponse.json({ success: true, id: employeeId });
+    return NextResponse.json(
+      { success: true, message: `Employee ${params.id} deleted` },
+      { status: 200 }
+    );
   } catch (err: any) {
-    console.error(`Error in /api/employees/${params.id} DELETE:`, err);
-    return NextResponse.json({ error: err.message || "An unknown server error occurred" }, { status: 500 });
+    console.error("Error in DELETE /api/employees/:id:", err);
+    return NextResponse.json(
+      { error: err.message || "Failed to delete employee" },
+      { status: 500 }
+    );
   }
 }

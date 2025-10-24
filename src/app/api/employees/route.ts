@@ -47,7 +47,7 @@ export async function POST(req: Request) {
       );
       return NextResponse.json(
         { error: `Employee with ID ${validatedData.employeeId} already exists.` },
-        { status: 409 }
+        { status: 409 } // 409 Conflict
       );
     }
 
