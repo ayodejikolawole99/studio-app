@@ -54,7 +54,7 @@ export default function StaffList() {
         const res = await fetch("/api/employees/list");
         
         if (!res.ok) {
-           // Try to parse error from server, with a fallback
+           // Attempt to get a detailed error message from the API, otherwise provide a generic one.
            const errorData = await res.json().catch(() => ({ error: 'Failed to fetch employees. The API route might be missing or crashing.' }));
            throw new Error(errorData.error);
         }
@@ -64,13 +64,15 @@ export default function StaffList() {
         if (data.success) {
           setEmployees(data.employees);
         } else {
+          // Handle cases where the API returns a success status but an application-level error.
           throw new Error(data.error || "An unknown error occurred while fetching employees.");
         }
       } catch (err: any) {
         console.error("Error fetching employees:", err);
-        // Provide a user-friendly message based on common failure modes
+        // The error message from the API is now the primary source of truth.
+        // We add a hint for common issues like JSON parsing failure.
         if (err.message.includes("JSON")) {
-            setError("The server returned an invalid response. This can happen if the API route is missing or has a server-side error.");
+            setError("The server returned an invalid response. This often happens if the API route has a fatal error or is missing.");
         } else {
             setError(err.message);
         }
@@ -166,7 +168,10 @@ export default function StaffList() {
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Failed to load staff data</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription>
+                {error}
+                <p className='mt-2 text-xs text-destructive/80'>This usually happens if the server-side API is missing credentials or has crashed. Please ensure Firebase Admin secrets are set correctly in your hosting environment.</p>
+              </AlertDescription>
             </Alert>
           </TableCell>
         </TableRow>

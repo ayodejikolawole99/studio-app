@@ -60,7 +60,7 @@ export default function TicketsPage() {
     startUpdateTransition(async () => {
       try {
         const isIndividual = 'employeeId' in payload;
-        const endpoint = isIndividual ? `/api/employees/${payload.employeeId}` : '/api/employees/bulk-update'; // A new bulk update endpoint will be needed
+        const endpoint = isIndividual ? `/api/employees/update-balance` : '/api/employees/bulk-update-balance';
         
         let apiPayload;
         let successMessage: string;
@@ -69,19 +69,12 @@ export default function TicketsPage() {
           const employee = employees.find(e => e.id === payload.employeeId);
           if (!employee) throw new Error("Employee not found");
           
-          const currentBalance = employee.ticketBalance || 0;
-          const newBalance = currentBalance + payload.amount;
-
-          apiPayload = { ticketBalance: newBalance };
+          apiPayload = { employeeId: payload.employeeId, amount: payload.amount };
           successMessage = `Ticket balance for ${employee.name} updated.`;
 
-          // Optimistically update local state
-          setEmployees(emps => emps.map(e => e.id === payload.employeeId ? {...e, ticketBalance: newBalance} : e));
         } else {
-           // This requires a new API endpoint for bulk updates, for now we will stub it
-           console.error("Bulk update functionality requires a new API endpoint: /api/employees/bulk-update");
-           toast({ variant: 'destructive', title: 'Not Implemented', description: 'Bulk update API endpoint is not yet created.' });
-           return;
+           apiPayload = { department: payload.department, amount: payload.amount };
+           successMessage = `Ticket balance for the ${payload.department} department updated.`;
         }
 
         const response = await fetch(endpoint, {
@@ -94,8 +87,12 @@ export default function TicketsPage() {
 
         if (response.ok) {
             toast({ title: 'Update Applied', description: successMessage });
-            // The API should return the updated employee(s) to sync state if needed
-            // For now, optimistic update is sufficient.
+            // Re-fetch employees to get the updated balances from the server
+            const res = await fetch("/api/employees/list");
+            const data = await res.json();
+            if (data.success) {
+              setEmployees(data.employees);
+            }
         } else {
             throw new Error(result.error || 'Update failed');
         }
@@ -107,8 +104,6 @@ export default function TicketsPage() {
           title: 'Update Failed',
           description: e.message || 'Could not update ticket balance.'
         });
-        // Re-fetch to revert optimistic update on failure
-        // fetchEmployees();
       }
     });
   };
@@ -118,8 +113,7 @@ export default function TicketsPage() {
   };
   
   const handleBulkUpdate = (department: string, amount: number) => {
-     toast({ variant: 'destructive', title: 'Not Implemented', description: 'Bulk update API endpoint is not yet created.' });
-     return;
+     handleUpdate({ department, amount });
   };
 
   if (isLoading) {
