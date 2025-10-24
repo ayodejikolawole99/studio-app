@@ -45,7 +45,8 @@ export function StaffEditDialog({
 
   useEffect(() => {
     if (isOpen && employee) {
-      const isNew = !employee.id;
+      // Use employeeId presence to determine if it's a new employee
+      const isNew = !employee.employeeId;
       setIsNewEmployee(isNew);
       setName(employee.name || '');
       setEmployeeId(employee.employeeId || '');

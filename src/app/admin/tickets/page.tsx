@@ -6,24 +6,21 @@ import type { Employee } from '@/lib/types';
 import IndividualTicketControl from '@/components/individual-ticket-control';
 import BulkTicketControl from '@/components/bulk-ticket-control';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
-import { useFirestore } from '@/firebase';
-import { doc, writeBatch, getDocs, query as firestoreQuery, where, collection, increment } from 'firebase/firestore';
+import { Loader2, AlertCircle } from 'lucide-react';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 
 export default function TicketsPage() {
   const { toast } = useToast();
-  const firestore = useFirestore();
   const [isUpdating, startUpdateTransition] = useTransition();
 
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [areEmployeesLoading, setAreEmployeesLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchEmployees() {
-      if (!firestore) return;
-      setAreEmployeesLoading(true);
+      setIsLoading(true);
       setError(null);
       try {
         const res = await fetch("/api/employees/list");
@@ -46,13 +43,12 @@ export default function TicketsPage() {
             setError(err.message);
         }
       } finally {
-        setAreEmployeesLoading(false);
+        setIsLoading(false);
       }
     }
 
     fetchEmployees();
-  }, [firestore]);
-
+  }, []);
 
   const departments = useMemo(() => {
     if (!employees) return [];
@@ -60,81 +56,73 @@ export default function TicketsPage() {
     return uniqueDepartments.sort();
   }, [employees]);
 
-  const handleIndividualUpdate = (employeeId: string, amount: number) => {
-    if (!firestore || !employees) return;
-    
+  const handleUpdate = (payload: { employeeId: string; amount: number } | { department: string; amount: number }) => {
     startUpdateTransition(async () => {
       try {
-        const employee = employees.find(e => e.id === employeeId);
-        if (!employee) throw new Error("Employee not found");
+        const isIndividual = 'employeeId' in payload;
+        const endpoint = isIndividual ? `/api/employees/${payload.employeeId}` : '/api/employees/bulk-update'; // A new bulk update endpoint will be needed
         
-        const employeeRef = doc(firestore, 'employees', employeeId);
-        // Using increment for atomic update
-        await writeBatch(firestore).update(employeeRef, { ticketBalance: increment(amount) }).commit();
-        
-        toast({
-          title: 'Update Applied',
-          description: `Ticket balance for ${employee.name} updated.`
+        let apiPayload;
+        let successMessage: string;
+
+        if (isIndividual) {
+          const employee = employees.find(e => e.id === payload.employeeId);
+          if (!employee) throw new Error("Employee not found");
+          
+          const currentBalance = employee.ticketBalance || 0;
+          const newBalance = currentBalance + payload.amount;
+
+          apiPayload = { ticketBalance: newBalance };
+          successMessage = `Ticket balance for ${employee.name} updated.`;
+
+          // Optimistically update local state
+          setEmployees(emps => emps.map(e => e.id === payload.employeeId ? {...e, ticketBalance: newBalance} : e));
+        } else {
+           // This requires a new API endpoint for bulk updates, for now we will stub it
+           console.error("Bulk update functionality requires a new API endpoint: /api/employees/bulk-update");
+           toast({ variant: 'destructive', title: 'Not Implemented', description: 'Bulk update API endpoint is not yet created.' });
+           return;
+        }
+
+        const response = await fetch(endpoint, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(apiPayload),
         });
-        
-        // Optimistically update local state
-        setEmployees(emps => emps.map(e => e.id === employeeId ? {...e, ticketBalance: (e.ticketBalance || 0) + amount} : e));
+
+        const result = await response.json();
+
+        if (response.ok) {
+            toast({ title: 'Update Applied', description: successMessage });
+            // The API should return the updated employee(s) to sync state if needed
+            // For now, optimistic update is sufficient.
+        } else {
+            throw new Error(result.error || 'Update failed');
+        }
+
       } catch (e: any) {
-        console.error("Error updating individual tickets:", e);
+        console.error("Error updating tickets:", e);
         toast({
           variant: 'destructive',
           title: 'Update Failed',
-          description: e.message || 'Could not update ticket balance. You may not have permission.'
+          description: e.message || 'Could not update ticket balance.'
         });
+        // Re-fetch to revert optimistic update on failure
+        // fetchEmployees();
       }
     });
   };
   
+  const handleIndividualUpdate = (employeeId: string, amount: number) => {
+    handleUpdate({ employeeId, amount });
+  };
+  
   const handleBulkUpdate = (department: string, amount: number) => {
-    if (!firestore) return;
-    
-    startUpdateTransition(async () => {
-      try {
-        const collectionRef = collection(firestore, "employees");
-        let q = department === 'all' 
-            ? collectionRef 
-            : firestoreQuery(collectionRef, where("department", "==", department));
-        
-        const querySnapshot = await getDocs(q);
-        
-        if (querySnapshot.empty) {
-            toast({ variant: 'destructive', title: 'No Employees Found', description: `No employees found in the ${department} department.` });
-            return;
-        }
-        
-        const batch = writeBatch(firestore);
-        const updatedIds = new Set<string>();
-        querySnapshot.forEach((docSnap) => {
-            batch.update(docSnap.ref, { ticketBalance: increment(amount) });
-            updatedIds.add(docSnap.id);
-        });
-
-        await batch.commit();
-        
-        toast({
-            title: 'Bulk Update Applied',
-            description: `Ticket balances updated for ${department === 'all' ? 'all employees' : `the ${department} department`}.`
-        });
-        // Optimistically update local state
-        setEmployees(emps => emps.map(e => updatedIds.has(e.id) ? {...e, ticketBalance: (e.ticketBalance || 0) + amount} : e));
-
-      } catch (e: any) {
-        console.error("Error performing bulk update:", e);
-        toast({ 
-          variant: 'destructive', 
-          title: 'Bulk Update Failed', 
-          description: e.message || 'Could not update ticket balances. You may not have permission.' 
-        });
-      }
-    });
+     toast({ variant: 'destructive', title: 'Not Implemented', description: 'Bulk update API endpoint is not yet created.' });
+     return;
   };
 
-  if (areEmployeesLoading) {
+  if (isLoading) {
     return (
         <div className="flex h-64 w-full items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -145,9 +133,15 @@ export default function TicketsPage() {
 
   if (error) {
      return (
-        <div className="flex flex-col h-64 w-full items-center justify-center rounded-lg border border-destructive/50 bg-destructive/10 p-8 text-center text-destructive">
-            <p className='font-bold'>Error Loading Employee Data</p>
-            <p className='text-sm mt-2'>{error}</p>
+        <div className="p-4">
+            <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error Loading Employee Data</AlertTitle>
+                <AlertDescription>
+                    {error}
+                    <p className='mt-2 text-xs text-destructive/80'>This usually happens if the server-side API is missing credentials or has crashed. Please ensure Firebase Admin secrets are set correctly in your hosting environment.</p>
+                </AlertDescription>
+            </Alert>
         </div>
     );
   }
@@ -159,7 +153,7 @@ export default function TicketsPage() {
           Ticket Management
         </h1>
         <p className="mt-2 text-lg text-muted-foreground">
-          Allocate individual and bulk tickets to employees. These actions require 'admin' permissions and are handled by the server.
+          Allocate individual and bulk tickets to employees.
         </p>
       </header>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

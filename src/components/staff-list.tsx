@@ -16,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Search, Loader2, UserPlus } from 'lucide-react';
+import { MoreHorizontal, Search, Loader2, UserPlus, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -33,11 +33,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 
 export default function StaffList() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [areEmployeesLoading, setAreEmployeesLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [isEditOpen, setEditOpen] = useState(false);
@@ -47,11 +48,13 @@ export default function StaffList() {
   
   useEffect(() => {
     async function fetchEmployees() {
-      setAreEmployeesLoading(true);
+      setIsLoading(true);
       setError(null);
       try {
         const res = await fetch("/api/employees/list");
+        
         if (!res.ok) {
+           // Try to parse error from server, with a fallback
            const errorData = await res.json().catch(() => ({ error: 'Failed to fetch employees. The API route might be missing or crashing.' }));
            throw new Error(errorData.error);
         }
@@ -65,13 +68,14 @@ export default function StaffList() {
         }
       } catch (err: any) {
         console.error("Error fetching employees:", err);
+        // Provide a user-friendly message based on common failure modes
         if (err.message.includes("JSON")) {
-            setError("The server returned an invalid response. The API route might be missing or failing.");
+            setError("The server returned an invalid response. This can happen if the API route is missing or has a server-side error.");
         } else {
             setError(err.message);
         }
       } finally {
-        setAreEmployeesLoading(false);
+        setIsLoading(false);
       }
     }
 
@@ -85,8 +89,10 @@ export default function StaffList() {
   ) || [], [employees, searchTerm]);
 
   const handleAddNew = () => {
+    // This employeeId should be treated as a placeholder client-side
+    // The server will use the one provided in the form
     const newEmployee: Employee = {
-      id: '',
+      id: `new_${Date.now()}`,
       name: '',
       department: '',
       ticketBalance: 0,
@@ -124,6 +130,7 @@ export default function StaffList() {
 
   const onSuccessfulSave = (savedEmployee: Employee) => {
       setEmployees(currentEmployees => {
+        // Check if employeeId exists to determine if it's an update or create
         const existingIndex = currentEmployees.findIndex(e => e.id === savedEmployee.id);
         if (existingIndex > -1) {
             // Update
@@ -137,6 +144,85 @@ export default function StaffList() {
       });
       setEditOpen(false);
   }
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <TableRow>
+          <TableCell colSpan={6} className="h-24 text-center">
+            <div className="flex justify-center items-center">
+              <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+              <span>Loading staff data...</span>
+            </div>
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    if (error) {
+      return (
+        <TableRow>
+          <TableCell colSpan={6}>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Failed to load staff data</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          </TableCell>
+        </TableRow>
+      );
+    }
+    
+    if (filteredEmployees.length > 0) {
+      return filteredEmployees.map((employee) => (
+        <TableRow key={employee.id}>
+          <TableCell><span className="font-medium">{employee.name}</span></TableCell>
+          <TableCell className="text-muted-foreground">{employee.employeeId}</TableCell>
+          <TableCell>{employee.department}</TableCell>
+          <TableCell className="font-medium">{employee.ticketBalance || 0}</TableCell>
+          <TableCell>{employee.biometricTemplate ? 'Enrolled' : 'Not Enrolled'}</TableCell>
+          <TableCell className="text-right">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon"><MoreHorizontal /></Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleEdit(employee)}>Edit</DropdownMenuItem>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600">Delete</DropdownMenuItem>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete the employee record for {employee.name}. This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDelete(employee)} className="bg-destructive hover:bg-destructive/90" disabled={isDeleting}>
+                        {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Continue
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </TableCell>
+        </TableRow>
+      ));
+    }
+
+    return (
+      <TableRow>
+        <TableCell colSpan={6} className="h-24 text-center">
+          No employees found. Try a different search or add new staff.
+        </TableCell>
+      </TableRow>
+    );
+  };
 
   return (
     <>
@@ -174,69 +260,7 @@ export default function StaffList() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {areEmployeesLoading ? (
-                   <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center">
-                        <div className="flex justify-center items-center">
-                          <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-                          <span>Loading staff data...</span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                ) : error ? (
-                   <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center text-destructive">
-                        <p className="font-bold">Failed to load staff data.</p>
-                        <p className="text-sm mt-1">{error}</p>
-                      </TableCell>
-                    </TableRow>
-                ) : filteredEmployees.length > 0 ? (
-                  filteredEmployees.map((employee) => (
-                    <TableRow key={employee.id}>
-                      <TableCell><span className="font-medium">{employee.name}</span></TableCell>
-                      <TableCell className="text-muted-foreground">{employee.id}</TableCell>
-                      <TableCell>{employee.department}</TableCell>
-                      <TableCell className="font-medium">{employee.ticketBalance || 0}</TableCell>
-                      <TableCell>{employee.biometricTemplate ? 'Enrolled' : 'Not Enrolled'}</TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon"><MoreHorizontal /></Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEdit(employee)}>Edit</DropdownMenuItem>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600">Delete</DropdownMenuItem>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will permanently delete the employee record for {employee.name}. This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDelete(employee)} className="bg-destructive hover:bg-destructive/90" disabled={isDeleting}>
-                                    {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    Continue
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                    <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center">
-                        No employees found. Try a different search or add new staff.
-                      </TableCell>
-                    </TableRow>
-                  )}
+                {renderContent()}
               </TableBody>
             </Table>
         </CardContent>
