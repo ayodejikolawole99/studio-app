@@ -1,6 +1,6 @@
 {
   "apphosting": {
     "source": ".",
-    "postinstall": "npm run build"
+    "server": "next"
   }
 }
