@@ -1,0 +1,9 @@
+runtime: nodejs20
+
+secrets:
+  - env: PROJECT_ID
+    secret: FIREBASE_PROJECT_ID
+  - env: CLIENT_EMAIL
+    secret: FIREBASE_CLIENT_EMAIL
+  - env: PRIVATE_KEY
+    secret: FIREBASE_PRIVATE_KEY

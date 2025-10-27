@@ -1,6 +1,9 @@
 {
   "apphosting": {
     "source": ".",
-    "server": "next"
+    "entrypoint": "npm run start",
+    "runConfig": {
+      "maxInstances": 1
+    }
   }
 }

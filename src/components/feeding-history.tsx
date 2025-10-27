@@ -32,9 +32,10 @@ export default function FeedingHistory({ records }: FeedingHistoryProps) {
               <TableBody>
                 {records.map((record) => (
                   <TableRow key={record.id}>
-                    <TableCell className="font-medium">{record.employeeName}</TableCell>
                     <TableCell className="text-right text-muted-foreground">
-                      {record.timestamp.toLocaleTimeString()}
+                     {record.timestamp instanceof Date
+                       ? record.timestamp.toLocaleTimeString()
+                       : record.timestamp.toDate().toLocaleTimeString()}
                     </TableCell>
                   </TableRow>
                 ))}

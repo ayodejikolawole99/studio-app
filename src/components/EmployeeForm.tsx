@@ -1,95 +1,106 @@
 "use client";
 
 import { useState } from "react";
-import { useEmployees } from "@/src/hooks/useEmployees";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { z } from "zod";
-import { toast } from "sonner";
+import { db } from "@/lib/firebaseClients"; // ✅ client-side Firestore
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
-const EmployeeSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  employeeId: z.string().min(1, "Employee ID is required"),
-  department: z.string().min(1, "Department is required"),
-  biometricTemplate: z.string().optional(),
-});
-
-type FormData = z.infer<typeof EmployeeSchema>;
-
-type EmployeeFormProps = {
-  initialData?: {
-    id: string;
-    name: string;
-    employeeId: string;
-    department: string;
-    biometricTemplate?: string;
-  };
-  onSuccess?: () => void;
-};
-
-export default function EmployeeForm({ initialData, onSuccess }: EmployeeFormProps) {
-  const isEdit = !!initialData;
-  const { createEmployee, updateEmployee, loading } = useEmployees();
-
-  const [form, setForm] = useState<FormData>({
-    name: initialData?.name || "",
-    employeeId: initialData?.employeeId || "",
-    department: initialData?.department || "",
-    biometricTemplate: initialData?.biometricTemplate || "",
+export default function EmployeeForm() {
+  const [formData, setFormData] = useState({
+    name: "",
+    employeeId: "",
+    department: "",
+    biometricTemplate: "",
   });
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(false);
 
-    const result = EmployeeSchema.safeParse(form);
-    if (!result.success) {
-      toast.error("Please fix the form errors");
-      return;
+    try {
+      await addDoc(collection(db, "employees"), {
+        ...formData,
+        ticketBalance: 0,
+        createdAt: serverTimestamp(),
+      });
+      setSuccess(true);
+      setFormData({ name: "", employeeId: "", department: "", biometricTemplate: "" });
+    } catch (err: any) {
+      setError(err.message || "Failed to add employee");
+    } finally {
+      setLoading(false);
     }
-
-    if (isEdit && initialData?.id) {
-      await updateEmployee(initialData.id, result.data);
-      toast.success("Employee updated successfully");
-    } else {
-      await createEmployee(result.data);
-      toast.success("Employee created successfully");
-    }
-
-    if (onSuccess) onSuccess();
-    setForm({ name: "", employeeId: "", department: "", biometricTemplate: "" });
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 p-4 max-w-md mx-auto">
+    <form onSubmit={handleSubmit} className="space-y-4 p-4 border rounded-md shadow-sm">
       <div>
-        <Label htmlFor="name">Name</Label>
-        <Input id="name" name="name" value={form.name} onChange={handleChange} />
-      </div>
-      <div>
-        <Label htmlFor="employeeId">Employee ID</Label>
-        <Input id="employeeId" name="employeeId" value={form.employeeId} onChange={handleChange} />
-      </div>
-      <div>
-        <Label htmlFor="department">Department</Label>
-        <Input id="department" name="department" value={form.department} onChange={handleChange} />
-      </div>
-      <div>
-        <Label htmlFor="biometricTemplate">Biometric Template</Label>
-        <Input
-          id="biometricTemplate"
-          name="biometricTemplate"
-          value={form.biometricTemplate}
+        <label className="block text-sm font-medium">Name</label>
+        <input
+          type="text"
+          name="name"
+          value={formData.name}
           onChange={handleChange}
+          className="mt-1 block w-full border rounded-md p-2"
+          required
         />
       </div>
-      <Button type="submit" disabled={loading} className="w-full">
-        {loading ? (isEdit ? "Updating..." : "Creating...") : isEdit ? "Update" : "Create"}
-      </Button>
+
+      <div>
+        <label className="block text-sm font-medium">Employee ID</label>
+        <input
+          type="text"
+          name="employeeId"
+          value={formData.employeeId}
+          onChange={handleChange}
+          className="mt-1 block w-full border rounded-md p-2"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium">Department</label>
+        <input
+          type="text"
+          name="department"
+          value={formData.department}
+          onChange={handleChange}
+          className="mt-1 block w-full border rounded-md p-2"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium">Biometric Template</label>
+        <input
+          type="text"
+          name="biometricTemplate"
+          value={formData.biometricTemplate}
+          onChange={handleChange}
+          className="mt-1 block w-full border rounded-md p-2"
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="bg-blue-600 text-white px-4 py-2 rounded-md disabled:opacity-50"
+      >
+        {loading ? "Saving..." : "Add Employee"}
+      </button>
+
+      {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+      {success && <p className="text-green-500 text-sm mt-2">Employee added successfully!</p>}
     </form>
   );
 }

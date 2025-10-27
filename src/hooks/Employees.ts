@@ -1,15 +1,6 @@
+// src/hooks/useEmployees.ts
 import { useState, useEffect } from "react";
-import { Employee } from "@/types/employee";
-
-export type Employee = {
-  id: string;
-  name: string;
-  employeeId: string;
-  department: string;
-  biometricTemplate?: string;
-  ticketBalance: number;
-  createdAt?: string;
-};
+import type { Employee } from "@/types/employee";
 
 export function useEmployees() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -36,7 +27,9 @@ export function useEmployees() {
   };
 
   // Create a new employee
-  const createEmployee = async (payload: Omit<Employee, "id" | "ticketBalance" | "createdAt">) => {
+  const createEmployee = async (
+    payload: Omit<Employee, "id" | "ticketBalance" | "createdAt">
+  ) => {
     setLoading(true);
     try {
       const res = await fetch("/api/employees", {
