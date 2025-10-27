@@ -1,9 +1,6 @@
 {
   "apphosting": {
     "source": ".",
-    "entrypoint": "npm run start",
-    "runConfig": {
-      "maxInstances": 1
-    }
+    "postinstall": "npm run build"
   }
 }
